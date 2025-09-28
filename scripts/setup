@@ -4,4 +4,18 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-python3 -m pip install --requirement requirements.txt
+# Activate virtual environment if it exists
+if [ -d "venv" ]; then
+    echo "📦 Using existing virtual environment..."
+    source venv/bin/activate
+else
+    echo "⚠️  No venv found. Creating new virtual environment..."
+    python3 -m venv venv
+    source venv/bin/activate
+fi
+
+# Install requirements
+python -m pip install --upgrade pip
+python -m pip install --requirement requirements.txt
+
+echo "✅ Setup complete! Virtual environment ready."

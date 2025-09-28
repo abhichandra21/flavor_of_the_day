@@ -6,8 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Setup and Dependencies
 ```bash
-./scripts/setup                    # Install Python dependencies
+./scripts/setup                    # Setup/activate venv and install dependencies
 ```
+
+**Virtual Environment**: All scripts automatically use the `venv/` directory if present. The setup script will create it if missing.
 
 ### Code Quality
 ```bash

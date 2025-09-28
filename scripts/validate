@@ -7,14 +7,31 @@ cd "$(dirname "$0")/.."
 echo "🔍 Validating Flavor of the Day Integration"
 echo "==========================================="
 
+# Try to use virtual environment if available
+if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
+    echo "📦 Using virtual environment..."
+    source venv/bin/activate
+    # Check if python is available in venv
+    if command -v python >/dev/null 2>&1; then
+        PYTHON_CMD="python"
+    elif command -v python3 >/dev/null 2>&1; then
+        PYTHON_CMD="python3"
+    else
+        echo "⚠️  No Python found in venv, using system python3"
+        PYTHON_CMD="python3"
+    fi
+else
+    PYTHON_CMD="python3"
+fi
+
 # Quick syntax validation
 echo "📝 Checking Python syntax..."
-python3 -m py_compile custom_components/flavor_of_the_day/*.py
-python3 -m py_compile custom_components/flavor_of_the_day/providers/*.py
+$PYTHON_CMD -m py_compile custom_components/flavor_of_the_day/*.py
+$PYTHON_CMD -m py_compile custom_components/flavor_of_the_day/providers/*.py
 
 # Validate manifest.json
 echo "📋 Validating manifest.json..."
-python3 -c "
+$PYTHON_CMD -c "
 import json
 import sys
 
@@ -36,7 +53,7 @@ except Exception as e:
 
 # Import test - check basic structure (skip full imports if HA not available)
 echo "📦 Testing module structure..."
-python3 -c "
+$PYTHON_CMD -c "
 import os
 import ast
 
@@ -92,7 +109,7 @@ except Exception as e:
 
 # Check for common issues
 echo "🔍 Checking for common issues..."
-python3 -c "
+$PYTHON_CMD -c "
 import os
 import re
 

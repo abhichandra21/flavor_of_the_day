@@ -4,6 +4,14 @@ set -e
 
 cd "$(dirname "$0")/.."
 
+# Activate virtual environment if available
+if [ -d "venv" ]; then
+    echo "📦 Activating virtual environment..."
+    source venv/bin/activate
+else
+    echo "⚠️  No venv found. Consider running './scripts/setup' first."
+fi
+
 # Create config dir if not present
 if [[ ! -d "${PWD}/config" ]]; then
     mkdir -p "${PWD}/config"
@@ -11,10 +19,15 @@ if [[ ! -d "${PWD}/config" ]]; then
 fi
 
 # Set the path to custom_components
-## This let's us have the structure we want <root>/custom_components/integration_blueprint
+## This let's us have the structure we want <root>/custom_components/flavor_of_the_day
 ## while at the same time have Home Assistant configuration inside <root>/config
 ## without resulting to symlinks.
 export PYTHONPATH="${PYTHONPATH}:${PWD}/custom_components"
+
+echo "🏠 Starting Home Assistant with Flavor of the Day integration..."
+echo "📍 Integration will be available at: http://localhost:8123"
+echo "🔧 Config directory: ${PWD}/config"
+echo ""
 
 # Start Home Assistant
 hass --config "${PWD}/config" --debug

@@ -7,9 +7,18 @@ cd "$(dirname "$0")/.."
 echo "🧪 Running Flavor of the Day Integration Tests"
 echo "============================================="
 
+# Activate virtual environment
+if [ -d "venv" ]; then
+    echo "📦 Activating virtual environment..."
+    source venv/bin/activate
+else
+    echo "❌ No venv found. Run './scripts/setup' first."
+    exit 1
+fi
+
 # Install test dependencies if not present
-echo "📦 Installing test dependencies..."
-python3 -m pip install --requirement requirements.txt --quiet
+echo "📦 Ensuring test dependencies are installed..."
+python -m pip install --requirement requirements.txt --quiet
 
 # Run linting first
 echo "🔍 Running code linting..."
@@ -17,6 +26,6 @@ echo "🔍 Running code linting..."
 
 # Run pytest with coverage
 echo "🧪 Running unit tests with coverage..."
-python3 -m pytest tests/ -v --cov=custom_components.flavor_of_the_day --cov-report=term-missing
+python -m pytest tests/ -v --cov=custom_components.flavor_of_the_day --cov-report=term-missing
 
 echo "✅ All tests completed!"

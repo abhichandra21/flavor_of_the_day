@@ -7,8 +7,25 @@ cd "$(dirname "$0")/.."
 echo "🌐 Testing Provider Connectivity"
 echo "================================"
 
+# Try to use virtual environment if available
+if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
+    echo "📦 Using virtual environment..."
+    source venv/bin/activate
+    # Check if python is available in venv
+    if command -v python >/dev/null 2>&1; then
+        PYTHON_CMD="python"
+    elif command -v python3 >/dev/null 2>&1; then
+        PYTHON_CMD="python3"
+    else
+        echo "⚠️  No Python found in venv, using system python3"
+        PYTHON_CMD="python3"
+    fi
+else
+    PYTHON_CMD="python3"
+fi
+
 # Test provider connectivity without full HA setup
-python3 -c "
+$PYTHON_CMD -c "
 import asyncio
 import aiohttp
 import sys
