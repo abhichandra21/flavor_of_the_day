@@ -65,7 +65,6 @@ LOCATION_SEARCH_SCHEMA = vol.Schema(
         vol.Optional("state"): selector.TextSelector(
             selector.TextSelectorConfig(
                 type=selector.TextSelectorType.TEXT,
-                max_length=2,
             )
         ),
     }
