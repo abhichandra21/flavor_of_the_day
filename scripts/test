@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "🧪 Running Flavor of the Day Integration Tests"
+echo "============================================="
+
+# Install test dependencies if not present
+echo "📦 Installing test dependencies..."
+python3 -m pip install --requirement requirements.txt --quiet
+
+# Run linting first
+echo "🔍 Running code linting..."
+./scripts/lint
+
+# Run pytest with coverage
+echo "🧪 Running unit tests with coverage..."
+python3 -m pytest tests/ -v --cov=custom_components.flavor_of_the_day --cov-report=term-missing
+
+echo "✅ All tests completed!"

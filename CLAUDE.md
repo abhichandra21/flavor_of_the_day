@@ -19,11 +19,18 @@ ruff check . --fix                 # Check and fix issues only
 ### Development and Testing
 ```bash
 ./scripts/develop                  # Start Home Assistant with this integration loaded
+./scripts/test                     # Run full test suite with coverage
+./scripts/validate                 # Quick validation and syntax checking
+./scripts/test-providers           # Test provider connectivity without HA
 ```
-This script:
-- Creates a local `config/` directory if needed
-- Sets `PYTHONPATH` to include `custom_components/`
-- Starts Home Assistant in debug mode with the integration available
+
+**Testing Hierarchy (fastest to slowest):**
+1. **`./scripts/validate`** - Syntax, imports, manifest validation (~5 seconds)
+2. **`./scripts/test-providers`** - Test real API connectivity (~10-30 seconds)
+3. **`./scripts/test`** - Full pytest suite with mocks (~30-60 seconds)
+4. **`./scripts/develop`** - Full Home Assistant integration test (manual)
+
+Use `./scripts/validate` for quick feedback during development.
 
 ## Integration Architecture
 
