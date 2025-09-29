@@ -46,8 +46,14 @@ class CulversProvider(BaseFlavorProvider):
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
             "Accept": "application/json",
         }
+
+        if state:
+            search_location = f"{search_term}, {state}"
+        else:
+            search_location = search_term
+
         params = {
-            "location": search_term,
+            "location": search_location,
             "radius": "40233",  # ~25 miles in meters
             "limit": "25",
             "layer": "",
@@ -140,7 +146,13 @@ class CulversProvider(BaseFlavorProvider):
             # Fallback for older configs that don't have the zip code stored.
             # This will do a broad search and might not be accurate.
             _LOGGER.warning("Zip code not found in config, falling back to broad search.")
-            search_term = location_id
+            parts = location_id.split('-')
+            if len(parts) > 1 and len(parts[-1]) == 2 and parts[-1].isalpha(): # Check for 2-letter state code
+                state = parts[-1]
+                city = "-".join(parts[:-1])
+                search_term = f"{city}, {state}"
+            else:
+                search_term = parts[0] # Fallback to just the first part
         else:
             search_term = zip_code
 

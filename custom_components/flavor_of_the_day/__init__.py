@@ -19,6 +19,7 @@ from .data import FlavorOfTheDayData
 from .providers.culvers import CulversProvider
 from .providers.kopps import KoppsProvider
 from .providers.oscars import OscarsProvider
+from .providers.goodberrys import GoodberrysProvider
 
 from .services import FlavorOfTheDayServices
 
@@ -33,6 +34,7 @@ PROVIDER_CLASSES = {
     "culvers": CulversProvider,
     "kopps": KoppsProvider,
     "oscars": OscarsProvider,
+    "goodberrys": GoodberrysProvider,
 }
 
 PLATFORMS = ["sensor"]

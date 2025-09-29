@@ -35,6 +35,7 @@ from .exceptions import FlavorProviderError
 from .providers.culvers import CulversProvider
 from .providers.kopps import KoppsProvider
 from .providers.oscars import OscarsProvider
+from .providers.goodberrys import GoodberrysProvider
 
 if TYPE_CHECKING:
     from homeassistant.data_entry_flow import FlowResult
@@ -58,6 +59,7 @@ USER_SCHEMA = vol.Schema(
                     SelectOptionDict(value="culvers", label="Culver's"),
                     SelectOptionDict(value="kopps", label="Kopp's Frozen Custard"),
                     SelectOptionDict(value="oscars", label="Oscar's Frozen Custard"),
+                    SelectOptionDict(value="goodberrys", label="Goodberry's Frozen Custard"),
                 ],
                 mode=SelectSelectorMode.DROPDOWN,
             )
@@ -126,6 +128,7 @@ PROVIDER_CLASSES = {
     "culvers": CulversProvider,
     "kopps": KoppsProvider,
     "oscars": OscarsProvider,
+    "goodberrys": GoodberrysProvider,
 }
 
 
@@ -159,14 +162,18 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self.provider_id = user_input[CONF_PROVIDER]
 
-
-
             # Create the provider instance
             session = async_get_clientsession(self.hass)
             provider_class = PROVIDER_CLASSES[self.provider_id]
             self.provider = provider_class(session, {})
 
-            return await self.async_step_location_search()
+            if self.provider_id in ["kopps", "oscars"]:
+                # For providers with fixed locations, get all locations
+                self.locations = await self.provider.search_locations("")
+                return await self.async_step_location_select()
+            else:
+                # For other providers, go to location search
+                return await self.async_step_location_search()
 
         return self.async_show_form(
             step_id="user", data_schema=USER_SCHEMA, errors=errors

@@ -33,6 +33,7 @@ sys.path.insert(0, '.')
 
 # Import the provider directly to avoid HA dependencies
 from custom_components.flavor_of_the_day.providers.culvers import CulversProvider
+from custom_components.flavor_of_the_day.providers.oscars import OscarsProvider
 
 async def test_providers():
     async with aiohttp.ClientSession() as session:
@@ -71,6 +72,37 @@ async def test_providers():
                     print(f'  Current flavor: ✅ {flavor.name}')
                     if flavor.description:
                         print(f'    Description: {flavor.description[:100]}...')
+                except Exception as e:
+                    print(f'  Current flavor: ⚠️  Could not fetch ({str(e)[:50]}...)')
+            else:
+                print('  ⚠️  No locations found to test connection')
+
+        except Exception as e:
+            print(f'  ❌ Provider test failed: {e}')
+
+        print('\n🏪 Testing Oscar\'s Provider...')
+        provider = OscarsProvider(session, {})
+
+        try:
+            # Test location search first
+            locations = await provider.search_locations('')
+            print(f'  Location search: ✅ Found {len(locations)} locations')
+
+            if locations:
+                location = locations[0]
+                print(f'  Test location: {location.name} ({location.store_id})')
+
+                # Test getting specific location details
+                try:
+                    location_details = await provider.get_location_by_id(location.store_id)
+                    print(f'  Location details: ✅ Got details for {location_details.name}')
+                except Exception as e:
+                    print(f'  Location details: ⚠️  Could not fetch ({str(e)[:50]}...)')
+
+                # Test getting flavor
+                try:
+                    flavor = await provider.get_current_flavor(location.store_id)
+                    print(f'  Current flavor: ✅ {flavor.name}')
                 except Exception as e:
                     print(f'  Current flavor: ⚠️  Could not fetch ({str(e)[:50]}...)')
             else:
