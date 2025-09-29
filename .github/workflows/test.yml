@@ -48,6 +48,7 @@ jobs:
         run: tox
       - name: 📤 Upload coverage to Codecov
         uses: "actions/upload-artifact@v4"
+        if: always()
         with:
           name: coverage-data
           path: "coverage.xml"
