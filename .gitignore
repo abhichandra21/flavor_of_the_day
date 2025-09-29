@@ -23,3 +23,9 @@ env/
 # Home Assistant configuration
 config/*
 !config/configuration.yaml
+
+# Untracked files
+CLAUDE.md
+HOME_ASSISTANT_DEVELOPMENT_GUIDE.md
+INTEGRATION_QUALITY_TODO.md
+QWEN.md
