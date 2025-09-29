@@ -1,5 +1,8 @@
 # Flavor of the Day Home Assistant Integration
 
+> [!WARNING]
+> This project is currently a work in progress (WIP) and may have incomplete features or unstable functionality.
+
 **Flavor of the Day** is a Home Assistant custom integration that provides information about the daily flavor offerings from popular ice cream and frozen custard locations. The integration allows users to get notified when their favorite store's flavor of the day changes.
 
 ## Features

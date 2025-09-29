@@ -162,8 +162,7 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self.provider_id = user_input[CONF_PROVIDER]
 
-            # Set unique ID based on provider to prevent duplicates
-            await self.async_set_unique_id(f"{DOMAIN}_{self.provider_id}")
+
 
             # Create the provider instance
             session = async_get_clientsession(self.hass)
@@ -227,32 +226,26 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             location_id = user_input[CONF_LOCATION_ID]
 
-            try:
-                # Get full location details using the provider
-                self.location_details = await self.provider.get_location_by_id(
-                    location_id
-                )
+            selected_location = next((loc for loc in self.locations if loc.store_id == location_id), None)
 
-                # Create the config entry
+            if not selected_location:
+                errors[CONF_LOCATION_ID] = "invalid_location"
+            else:
+                await self.async_set_unique_id(f"{self.provider_id}_{location_id}")
+                self._abort_if_unique_id_configured()
+
                 return self.async_create_entry(
-                    title=self.location_details.name,
+                    title=selected_location.name,
                     data={
                         CONF_PROVIDER: self.provider_id,
                         CONF_LOCATION_ID: location_id,
+                        "zip_code": selected_location.zip_code,
                         CONF_UPDATE_INTERVAL: user_input.get(
                             CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
                         ),
                     },
                 )
-            except FlavorProviderError:
-                _LOGGER.exception("Provider error getting location details")
-                errors[CONF_LOCATION_ID] = "provider_error"
-            except (TimeoutError, aiohttp.ClientError):
-                _LOGGER.exception("Network error getting location details")
-                errors[CONF_LOCATION_ID] = "network_error"
-            except Exception:
-                _LOGGER.exception("Unexpected error getting location details")
-                errors[CONF_LOCATION_ID] = "unknown_error"
+
 
         return self.async_show_form(
             step_id="location_select",

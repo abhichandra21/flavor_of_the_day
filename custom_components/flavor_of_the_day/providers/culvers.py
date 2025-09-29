@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
-from bs4 import BeautifulSoup
 from homeassistant.util import dt as dt_util
 
 from custom_components.flavor_of_the_day.exceptions import (
@@ -137,75 +135,70 @@ class CulversProvider(BaseFlavorProvider):
 
     async def get_current_flavor(self, location_id: str) -> FlavorInfo:
         """Get today's flavor of the day from Culver's."""
-        url = f"{self.BASE_URL}/restaurants/{location_id}"
-        _LOGGER.debug("Getting flavor for location %s from %s", location_id, url)
+        zip_code = self.config.get("zip_code")
+        if not zip_code:
+            # Fallback for older configs that don't have the zip code stored.
+            # This will do a broad search and might not be accurate.
+            _LOGGER.warning("Zip code not found in config, falling back to broad search.")
+            search_term = location_id
+        else:
+            search_term = zip_code
 
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+            "Accept": "application/json",
         }
+        params = {
+            "location": search_term,
+            "radius": "40233",
+            "limit": "25",
+            "layer": "",
+        }
+        url = f"{self.BASE_URL}/api/locator/getLocations"
 
         try:
-            async with self.session.get(url, headers=headers, timeout=self._timeout) as response:
+            async with self.session.get(url, headers=headers, params=params, timeout=self._timeout) as response:
                 response.raise_for_status()
-                html = await response.text()
-                flavor_info = self._extract_flavor_from_restaurant_page(html)
-                if flavor_info:
-                    return flavor_info
+                data = await response.json()
 
-                msg = f"Flavor of the day not found on page for location {location_id}"
-                raise FlavorNotAvailableError(msg)
+                if not isinstance(data, dict) or "data" not in data or "geofences" not in data["data"]:
+                    msg = f"Unexpected response for location {location_id}"
+                    raise FlavorNotAvailableError(msg)
+
+                geofences = data["data"]["geofences"]
+                if not geofences:
+                    msg = f"Location {location_id} not found in API response"
+                    raise FlavorNotAvailableError(msg)
+
+                location_data = None
+                for item in geofences:
+                    if item.get("metadata", {}).get("slug") == location_id:
+                        location_data = item["metadata"]
+                        break
+                
+                if not location_data:
+                    msg = f"Could not find location {location_id} in API response"
+                    raise FlavorNotAvailableError(msg)
+
+                flavor_name = location_data.get("flavorOfDayName")
+                if not flavor_name or "closed" in flavor_name.lower():
+                    msg = f"Flavor of the day not available for {location_id}"
+                    raise FlavorNotAvailableError(msg)
+
+                return FlavorInfo(
+                    name=flavor_name,
+                    description=location_data.get("flavorOfTheDayDescription"),
+                    available_date=dt_util.now(),
+                )
 
         except aiohttp.ClientError as e:
             _LOGGER.exception("Network error getting flavor for %s", location_id)
-            msg = f"Network error accessing Culver's page for location {location_id}"
+            msg = f"Network error accessing Culver's API for location {location_id}"
             raise FlavorNotAvailableError(msg) from e
         except Exception as e:
             _LOGGER.exception("Error getting flavor for %s", location_id)
             msg = f"Could not retrieve flavor for location {location_id}"
             raise FlavorNotAvailableError(msg) from e
-
-    def _extract_flavor_from_restaurant_page(self, html: str) -> FlavorInfo | None:
-        """Extract flavor information from restaurant page."""
-        try:
-            soup = BeautifulSoup(html, "html.parser")
-            
-            # Find the "Today's Flavor of the Day" subheading
-            subheading = soup.find("h3", string="Today’s Flavor of the Day")
-            if subheading:
-                flavor_heading = subheading.find_previous_sibling("h2")
-                if flavor_heading:
-                    flavor_name = flavor_heading.get_text(strip=True)
-                    if flavor_name:
-                        _LOGGER.debug("Found flavor via h3 sibling search: %s", flavor_name)
-                        return FlavorInfo(name=flavor_name, available_date=dt_util.now())
-
-            # Fallback to __NEXT_DATA__ parsing
-            script_tag = soup.find("script", {"id": "__NEXT_DATA__"})
-            if script_tag and script_tag.string:
-                json_data = json.loads(script_tag.string)
-                _LOGGER.debug("Falling back to __NEXT_DATA__ parsing")
-
-                if "props" in json_data and "pageProps" in json_data["props"] and "restaurant" in json_data["props"]["pageProps"]:
-                    restaurant_data = json_data["props"]["pageProps"]["restaurant"]
-                    
-                    fotd = restaurant_data.get("FlavorOfTheDay")
-                    if fotd and fotd.get("Name"):
-                        flavor_name = fotd["Name"]
-                        _LOGGER.debug("Found flavor in restaurant data: %s", flavor_name)
-                        return FlavorInfo(
-                            name=flavor_name,
-                            description=fotd.get("Description"),
-                            available_date=dt_util.now(),
-                        )
-
-            return None
-
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
-            _LOGGER.debug("Error parsing restaurant data: %s", e)
-            return None
-        except Exception as e:
-            _LOGGER.exception("Error extracting flavor from restaurant page: %s", e)
-            return None
 
     async def get_upcoming_flavors(
         self, location_id: str, days: int = 7
