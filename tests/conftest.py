@@ -1,134 +1,61 @@
-"""Common test fixtures for Flavor of the Day integration."""
+"""Global fixtures for flavor_of_the_day integration."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from collections.abc import Generator
+from typing import Any
+from unittest.mock import patch
 
 import pytest
-from homeassistant.components.sensor import SensorEntityDescription
+from aioresponses import aioresponses
 from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-# Import Home Assistant test fixtures
-pytest_plugins = "pytest_homeassistant_custom_component.common"
-
-from custom_components.flavor_of_the_day.const import (
-    CONF_LOCATION_ID,
-    CONF_PROVIDER,
-    CONF_UPDATE_INTERVAL,
-    DOMAIN,
-)
-from custom_components.flavor_of_the_day.coordinator import FlavorUpdateCoordinator
-from custom_components.flavor_of_the_day.models import FlavorInfo, LocationInfo
+from custom_components.flavor_of_the_day.const import DOMAIN
+from tests.const import CONFIG_DATA, COORDINATOR_DATA
 
 
-@pytest.fixture
-def mock_flavor_info():
-    """Mock FlavorInfo."""
-    return FlavorInfo(
-        name="Test Flavor",
-        description="Test flavor description",
-        ingredients=["ingredient1", "ingredient2"],
-        allergens=["allergen1"],
-        available_date=None,
-        price="$4.99",
-    )
+# This fixture enables loading custom integrations in all tests.
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(enable_custom_integrations):  # noqa: ARG001, ANN001, ANN201
+    """Enable custom integration tests."""
+    return
 
 
-@pytest.fixture
-def mock_location_info():
-    """Mock LocationInfo."""
-    return LocationInfo(
-        store_id="test123",
-        name="Test Store",
-        address="123 Main St",
-        city="Test City",
-        state="TS",
-        zip_code="12345",
-        phone="(123) 456-7890",
-        hours={"monday": "8am-10pm"},
-        website_url="https://example.com",
-        latitude=43.0732,
-        longitude=-89.4012,
-    )
-
-
-@pytest.fixture
-def mock_provider(mock_location_info, mock_flavor_info):
-    """Mock BaseFlavorProvider."""
-    with patch(
-        "custom_components.flavor_of_the_day.providers.culvers.CulversProvider"
-    ) as mock_class:
-        mock_instance = mock_class.return_value
-        mock_instance.provider_name = "Test Provider"
-        mock_instance.provider_id = "test_provider"
-        mock_instance.search_locations.return_value = [mock_location_info]
-        mock_instance.get_location_by_id.return_value = mock_location_info
-        mock_instance.get_current_flavor.return_value = mock_flavor_info
-        mock_instance.test_connection.return_value = True
-
-        yield mock_instance
-
-
-@pytest.fixture
-def mock_coordinator(hass: HomeAssistant, mock_provider, mock_flavor_info):
-    """Mock FlavorUpdateCoordinator."""
-    coordinator = Mock(spec=FlavorUpdateCoordinator)
-    coordinator.data = mock_flavor_info
-    coordinator.config_entry = Mock()
-    coordinator.config_entry.entry_id = "test_entry_id"
-    coordinator.config_entry.data = {"name": "Test Sensor"}
-    coordinator.provider = mock_provider
-    coordinator.location_id = "test_location_id"
-    coordinator.async_request_refresh = AsyncMock()
-
-    return coordinator
-
-
-@pytest.fixture
-def mock_config_entry_data():
-    """Mock config entry data."""
-    return {
-        CONF_PROVIDER: "culvers",
-        CONF_LOCATION_ID: "test_location",
-        CONF_UPDATE_INTERVAL: 30,
-        "name": "Test Entry",
-    }
-
-
-@pytest.fixture
-def mock_sensor_entity_description():
-    """Mock sensor entity description."""
-    return SensorEntityDescription(
-        key="flavor_of_the_day",
-        name="Flavor of the Day",
-        icon="mdi:ice-cream",
-    )
-
-
-@pytest.fixture
-async def setup_integration(hass: HomeAssistant, mock_config_entry_data):
-    """Set up the flavor_of_the_day integration."""
-    config_entry = Mock()
-    config_entry.entry_id = "test_entry"
-    config_entry.data = mock_config_entry_data
-    config_entry.options = {}
-
+# This fixture prevents HomeAssistant from creating/dismissing persistent notifications.
+@pytest.fixture(name="skip_notifications", autouse=True)
+def skip_notifications_fixture() -> Generator[None]:
+    """Skip notification calls."""
     with (
-        patch(
-            "custom_components.flavor_of_the_day.providers.culvers.CulversProvider"
-        ) as mock_provider_class,
-        patch("custom_components.flavor_of_the_day.async_get_clientsession"),
+        patch("homeassistant.components.persistent_notification.async_create"),
+        patch("homeassistant.components.persistent_notification.async_dismiss"),
     ):
-        mock_provider = mock_provider_class.return_value
-        mock_provider.get_current_flavor.return_value = FlavorInfo(
-            name="Test Flavor", description="Test Description"
-        )
+        yield
 
-        hass.data.setdefault(DOMAIN, {})
 
-        # Import and call async_setup_entry
-        from custom_components.flavor_of_the_day import async_setup_entry
+@pytest.fixture
+def mock_flavor_coordinator() -> Generator[Any]:
+    """Mock coordinator data."""
+    with patch(
+        "custom_components.flavor_of_the_day.FlavorUpdateCoordinator._async_update_data"
+    ) as mock_value:
+        mock_value.return_value = COORDINATOR_DATA
+        yield
 
-        # Call the setup function
-        result = await async_setup_entry(hass, config_entry)
-        assert result is True
 
-        yield config_entry
+@pytest.fixture
+def mock_aioclient() -> Generator[aioresponses]:
+    """Fixture to mock aioclient calls."""
+    with aioresponses() as m:
+        yield m
+
+
+@pytest.fixture(name="integration")
+async def integration_fixture(hass: HomeAssistant) -> MockConfigEntry:
+    """Set up the flavor_of_the_day integration."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, title="Test Location", data=CONFIG_DATA, version=1
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    return entry

@@ -1,5 +1,5 @@
-force_refresh:
-  name: Force Refresh
+refresh:
+  name: Refresh
   description: Force an immediate refresh of the flavor of the day.
   target:
     entity:

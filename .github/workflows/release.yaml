@@ -24,14 +24,16 @@ jobs:
       - name: "Set version number"
         if: ${{ github.event_name == 'release' }}
         run: |
-          sed -i '/"version":/c\  "version": "${{ env.VERSION }}",' ${{ github.workspace }}/custom_components/flavor_of_the_day/manifest.json
+          sed -i '/VERSION = /c\VERSION = "${{ env.VERSION }}"' ${{ github.workspace }}/custom_components/flavor_of_the_day/const.py
+          sed -i '/version/c\  \"version\": \"${{ env.VERSION }}\"' ${{ github.workspace }}/custom_components/flavor_of_the_day/manifest.json
       - name: "Set version number"
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          sed -i '/"version":/c\  "version": "${{inputs.tags}}",' ${{ github.workspace }}/custom_components/flavor_of_the_day/manifest.json
+          sed -i '/VERSION = /c\VERSION = "${{inputs.tags}}"' ${{ github.workspace }}/custom_components/flavor_of_the_day/const.py
+          sed -i '/version/c\  \"version\": \"${{inputs.tags}}\"' ${{ github.workspace }}/custom_components/flavor_of_the_day/manifest.json
 
 
-      # Pack the ha-flavoroftheday dir as a zip and upload to the release
+      # Pack the flavor_of_the_day dir as a zip and upload to the release
       - name: Create Zip File
         run: |
           cd ${{ github.workspace }}/custom_components/flavor_of_the_day

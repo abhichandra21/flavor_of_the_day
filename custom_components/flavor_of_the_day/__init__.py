@@ -17,11 +17,10 @@ from .const import (
 from .coordinator import FlavorUpdateCoordinator
 from .data import FlavorOfTheDayData
 from .providers.culvers import CulversProvider
+from .providers.goodberrys import GoodberrysProvider
 from .providers.kopps import KoppsProvider
 from .providers.oscars import OscarsProvider
-from .providers.goodberrys import GoodberrysProvider
-
-from .services import FlavorOfTheDayServices
+from .services import async_setup_services
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -80,8 +79,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     # Register services
-    services = FlavorOfTheDayServices(hass)
-    services.async_register()
+    await async_setup_services(hass)
 
     # Forward the setup to the sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

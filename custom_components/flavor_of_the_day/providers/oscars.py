@@ -1,9 +1,10 @@
+"""Oscar's Frozen Custard provider implementation."""
+
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
 
-import aiohttp
 from bs4 import BeautifulSoup
 from homeassistant.util import dt as dt_util
 
@@ -36,7 +37,9 @@ class OscarsProvider(BaseFlavorProvider):
         return "oscars"
 
     async def search_locations(
-        self, search_term: str, state: str | None = None
+        self,
+        search_term: str,
+        state: str | None = None,  # noqa: ARG002
     ) -> list[LocationInfo]:
         """Return a list of all Oscar's locations, as they are fixed."""
         known_locations = [
@@ -70,8 +73,6 @@ class OscarsProvider(BaseFlavorProvider):
             or search_lower in loc.address.lower()
         ]
 
-
-
     async def get_location_by_id(self, location_id: str) -> LocationInfo:
         """Get specific location details by store ID."""
         # Get all known locations and find the one with matching ID
@@ -88,9 +89,9 @@ class OscarsProvider(BaseFlavorProvider):
         """Get today's flavor of the day from Oscar's."""
         try:
             async with self.session.get(self.BASE_URL) as response:
-                if response.status != 200:
+                if response.status != 200:  # noqa: PLR2004
                     msg = f"Could not access Oscar's website for location {location_id}"
-                    raise FlavorNotAvailableError(msg)
+                    raise FlavorNotAvailableError(msg)  # noqa: TRY301
 
                 html = await response.text()
                 soup = BeautifulSoup(html, "html.parser")
@@ -115,8 +116,8 @@ class OscarsProvider(BaseFlavorProvider):
                         break
 
                 if not flavor_text:
-                    msg = f"Could not find flavor of the day on Oscar's page for location {location_id}"
-                    raise FlavorNotAvailableError(msg)
+                    msg = f"Could not find flavor of the day on Oscar's page for location {location_id}"  # noqa: E501
+                    raise FlavorNotAvailableError(msg)  # noqa: TRY301
 
                 # The text is like "SUNDAY, SEPTEMBER 28: CHOCOLATE COVERED CHERRY"
                 # I need to extract the flavor name after the colon.
@@ -128,8 +129,8 @@ class OscarsProvider(BaseFlavorProvider):
                         available_date=dt_util.now(),
                     )
 
-                msg = f"Could not extract flavor from Oscar's page for location {location_id}"
-                raise FlavorNotAvailableError(msg)
+                msg = f"Could not extract flavor from Oscar's page for location {location_id}"  # noqa: E501
+                raise FlavorNotAvailableError(msg)  # noqa: TRY301
 
         except Exception as e:
             _LOGGER.exception("Error getting current flavor from Oscar's")
@@ -137,7 +138,8 @@ class OscarsProvider(BaseFlavorProvider):
             raise FlavorNotAvailableError(msg) from e
 
     async def get_upcoming_flavors(
-        self, location_id: str, days: int = 7
+        self,
+        location_id: str,  # noqa: ARG002, days:  # noqa: ARG002 int = 7
     ) -> list[tuple[date, FlavorInfo]]:
         """Get upcoming flavors (if supported by Oscar's)."""
         # Oscar's may not provide upcoming flavors, just today's

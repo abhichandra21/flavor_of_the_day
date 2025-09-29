@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
-import aiohttp
 from bs4 import BeautifulSoup
 from homeassistant.util import dt as dt_util
 
@@ -38,7 +38,9 @@ class KoppsProvider(BaseFlavorProvider):
         return "kopps"
 
     async def search_locations(
-        self, search_term: str, state: str | None = None
+        self,
+        search_term: str,
+        state: str | None = None,  # noqa: ARG002
     ) -> list[LocationInfo]:
         """Return a list of all Kopp's locations, as they are fixed."""
         known_locations = [
@@ -79,8 +81,6 @@ class KoppsProvider(BaseFlavorProvider):
             or search_lower in loc.city.lower()
             or search_lower in loc.address.lower()
         ]
-
-
 
     async def get_location_by_id(self, location_id: str) -> LocationInfo:
         """Get specific location details by store ID."""
@@ -148,9 +148,9 @@ class KoppsProvider(BaseFlavorProvider):
         """Get today's flavor of the day from Kopp's."""
         try:
             async with self.session.get(f"{self.BASE_URL}/flavor-preview") as response:
-                if response.status != 200:
-                    msg = f"Could not access Kopp's flavor preview page for location {location_id}"
-                    raise FlavorNotAvailableError(msg)
+                if response.status != 200:  # noqa: PLR2004
+                    msg = f"Could not access Kopp's flavor preview page for location {location_id}"  # noqa: E501
+                    raise FlavorNotAvailableError(msg)  # noqa: TRY301
 
                 html = await response.text()
                 soup = BeautifulSoup(html, "html.parser")
@@ -162,18 +162,20 @@ class KoppsProvider(BaseFlavorProvider):
                 today_div = soup.find("div", id=str(today))
 
                 if not today_div:
-                    msg = f"Could not find today's flavor div on Kopp's flavor preview page for location {location_id}"
-                    raise FlavorNotAvailableError(msg)
+                    msg = f"Could not find today's flavor div on Kopp's flavor preview page for location {location_id}"  # noqa: E501
+                    raise FlavorNotAvailableError(msg)  # noqa: TRY301
 
                 # Find all flavor names within the div
                 flavors = [
                     h3.get_text(strip=True)
-                    for h3 in today_div.find_all("h3", class_="h5 fw-black text-uppercase mb-0")
+                    for h3 in today_div.find_all(
+                        "h3", class_="h5 fw-black text-uppercase mb-0"
+                    )
                 ]
 
                 if not flavors:
-                    msg = f"Could not extract flavors from Kopp's flavor preview page for location {location_id}"
-                    raise FlavorNotAvailableError(msg)
+                    msg = f"Could not extract flavors from Kopp's flavor preview page for location {location_id}"  # noqa: E501
+                    raise FlavorNotAvailableError(msg)  # noqa: TRY301
 
                 return FlavorInfo(
                     name=" & ".join(flavors),
@@ -186,12 +188,13 @@ class KoppsProvider(BaseFlavorProvider):
             raise FlavorNotAvailableError(msg) from e
 
     async def get_upcoming_flavors(
-        self, location_id: str, days: int = 7
+        self,
+        location_id: str,  # noqa: ARG002, days:  # noqa: ARG002 int = 7
     ) -> list[tuple[date, FlavorInfo]]:
         """Get upcoming flavors from Kopp's flavor preview."""
         try:
             async with self.session.get(f"{self.BASE_URL}/flavor-preview") as response:
-                if response.status != 200:
+                if response.status != 200:  # noqa: PLR2004
                     _LOGGER.debug("Flavor preview page not accessible")
                     return []
 
@@ -206,7 +209,7 @@ class KoppsProvider(BaseFlavorProvider):
                     if "TOMORROW" in header.get_text(strip=True).upper():
                         tomorrow_flavors_section = header
                         break
-                
+
                 if not tomorrow_flavors_section:
                     return []
 
@@ -218,9 +221,8 @@ class KoppsProvider(BaseFlavorProvider):
                         flavors.append(flavor_name_tag.get_text(strip=True))
                     else:
                         break
-                
+
                 if flavors:
-                    from datetime import timedelta
                     tomorrow = dt_util.now().date() + timedelta(days=1)
                     upcoming_flavors.append(
                         (
@@ -235,6 +237,6 @@ class KoppsProvider(BaseFlavorProvider):
                     )
 
                 return upcoming_flavors
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             _LOGGER.debug("Error getting upcoming flavors: %s", e)
             return []

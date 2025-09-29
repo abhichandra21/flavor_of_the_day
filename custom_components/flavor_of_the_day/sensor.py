@@ -1,27 +1,27 @@
+"""Sensor platform for Flavor of the Day integration."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import ATTRIBUTION, DOMAIN
-from .coordinator import FlavorUpdateCoordinator
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+    from .coordinator import FlavorUpdateCoordinator
 
-# Entity descriptions for declarative entity definitions
-SENSOR_DESCRIPTIONS = (
-    SensorEntityDescription(
-        key="flavor_of_the_day",
-        name="Flavor of the Day",
-        icon="mdi:ice-cream",
-    ),
+
+SENSOR_DESCRIPTION = SensorEntityDescription(
+    key="flavor_of_the_day",
+    translation_key="flavor_of_the_day",
+    icon="mdi:ice-cream",
 )
 
 
@@ -30,20 +30,18 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the sensor platform."""
-    async_add_entities(
-        FlavorOfTheDaySensor(
-            coordinator=entry.runtime_data.coordinator,
-            entity_description=entity_description,
-        )
-        for entity_description in SENSOR_DESCRIPTIONS
-    )
+    """Set up the Flavor of the Day sensor."""
+    runtime_data = entry.runtime_data
+    coordinator = runtime_data.coordinator
+
+    async_add_entities([FlavorOfTheDaySensor(coordinator, SENSOR_DESCRIPTION)])
 
 
-class FlavorOfTheDaySensor(CoordinatorEntity[FlavorUpdateCoordinator], SensorEntity):
-    """Flavor of the Day sensor."""
+class FlavorOfTheDaySensor(CoordinatorEntity, SensorEntity):
+    """Sensor for today's flavor."""
 
     _attr_attribution = ATTRIBUTION
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -53,56 +51,61 @@ class FlavorOfTheDaySensor(CoordinatorEntity[FlavorUpdateCoordinator], SensorEnt
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = entity_description
-
-        # Use config entry ID for unique ID (blueprint pattern)
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_{entity_description.key}"
         )
 
-        # Get custom name from config or use default
-        custom_name = coordinator.config_entry.data.get("name")
-        if custom_name:
-            self._attr_name = custom_name
-        else:
-            self._attr_name = entity_description.name
-
     @property
-    def native_value(self) -> str:
-        """Return the current flavor name."""
-        if self.coordinator.data:
-            return self.coordinator.data.name
-        return "Unknown"
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return additional flavor information."""
-        if not self.coordinator.data:
-            return {}
-
-        attrs = self.coordinator.data.to_dict()
-        attrs.update(
-            {
-                "provider": self.coordinator.provider.provider_name,
-                "location_id": self.coordinator.location_id,
-                "last_updated": self.coordinator.last_update_success,
-            }
-        )
-        return attrs
-
-    @property
-    def entity_picture(self) -> str | None:
-        """Return the entity picture to use in the frontend."""
-        if self.coordinator.data and self.coordinator.data.image_url:
-            return self.coordinator.data.image_url
-        return None
+    def name(self) -> str:
+        """Return the name of the sensor."""
+        return self.coordinator.config_entry.data.get("name", "Flavor of the Day")
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return device information for grouping."""
+        """Return device information about this sensor."""
         return DeviceInfo(
             identifiers={(DOMAIN, self.coordinator.config_entry.entry_id)},
-            name=self._attr_name,
+            name=self.coordinator.config_entry.data.get("name", "Flavor of the Day"),
             manufacturer=self.coordinator.provider.provider_name,
             model="Flavor of the Day Sensor",
-            configuration_url=None,
         )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the state of the sensor."""
+        if not self.coordinator.data:
+            return "Unknown"
+        return self.coordinator.data.name
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional attributes."""
+        if not self.coordinator.data:
+            return {}
+
+        flavor = self.coordinator.data
+        attributes: dict[str, Any] = {
+            "name": flavor.name,
+            "provider": self.coordinator.provider.provider_name,
+            "location_id": self.coordinator.location_id,
+        }
+
+        if flavor.description:
+            attributes["description"] = flavor.description
+
+        if flavor.ingredients:
+            attributes["ingredients"] = flavor.ingredients
+
+        if flavor.allergens:
+            attributes["allergens"] = flavor.allergens
+
+        if flavor.price:
+            attributes["pricing"] = flavor.price
+
+        if flavor.available_date:
+            attributes["available_date"] = flavor.available_date.isoformat()
+
+        if flavor.image_url:
+            attributes["image_url"] = flavor.image_url
+
+        return attributes

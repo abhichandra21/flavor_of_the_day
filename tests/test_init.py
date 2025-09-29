@@ -1,61 +1,37 @@
-"""Tests for the Flavor of the Day integration setup."""
+"""Test flavor_of_the_day setup process."""
 
-from unittest.mock import Mock, patch
+from typing import Any
 
-import pytest
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.flavor_of_the_day.const import DOMAIN
+from tests.const import CONFIG_DATA
 
 
-@pytest.mark.asyncio
-async def test_setup_entry(hass: HomeAssistant, mock_config_entry_data) -> None:
-    """Test setting up the integration entry."""
-    config_entry = Mock()
-    config_entry.entry_id = "test_entry"
-    config_entry.data = mock_config_entry_data
-    config_entry.runtime_data = None
+async def test_setup_and_unload_entry(
+    hass: HomeAssistant,
+    mock_flavor_coordinator: Any,  # noqa: ARG001
+) -> None:
+    """Test setup_entry."""
+    entry = MockConfigEntry(
+        domain=DOMAIN, title="Test Location", data=CONFIG_DATA, version=1
+    )
 
-    with (
-        patch(
-            "custom_components.flavor_of_the_day.providers.culvers.CulversProvider"
-        ) as mock_provider_class,
-        patch("custom_components.flavor_of_the_day.async_get_clientsession"),
-    ):
-        # Mock the provider
-        mock_provider = mock_provider_class.return_value
-        from custom_components.flavor_of_the_day.models import FlavorInfo
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
 
-        mock_provider.get_current_flavor.return_value = FlavorInfo(
-            name="Test Flavor", description="Test Description"
-        )
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 1
+    entries = hass.config_entries.async_entries(DOMAIN)
+    assert len(entries) == 1
 
-        # Import and call async_setup_entry
-        from custom_components.flavor_of_the_day import async_setup_entry
+    assert await hass.config_entries.async_unload(entries[0].entry_id)
+    await hass.async_block_till_done()
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 1
+    assert len(hass.states.async_entity_ids(DOMAIN)) == 0
 
-        # Call the setup function
-        result = await async_setup_entry(hass, config_entry)
-        assert result is True
-
-        # Check that the config entry was added to hass.data
-        assert DOMAIN in hass.data
-        assert config_entry.entry_id in hass.data[DOMAIN]
-
-        # Check that platforms were forwarded
-        # Note: We can't test this directly without more complex mocking
-
-
-@pytest.mark.asyncio
-async def test_unload_entry(hass: HomeAssistant, setup_integration) -> None:
-    """Test unloading the integration entry."""
-    config_entry = setup_integration
-
-    # Setup the integration first
-    with patch(
-        "custom_components.flavor_of_the_day.async_unload_platforms", return_value=True
-    ) as mock_unload:
-        from custom_components.flavor_of_the_day import async_unload_entry
-
-        result = await async_unload_entry(hass, config_entry)
-        assert result is True
-        mock_unload.assert_called_once_with(config_entry, ["sensor"])
+    assert await hass.config_entries.async_remove(entries[0].entry_id)
+    await hass.async_block_till_done()
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 0

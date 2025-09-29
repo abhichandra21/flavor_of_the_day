@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+# Version for the integration
+VERSION = "0.0.1"
+
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
 

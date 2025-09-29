@@ -33,9 +33,9 @@ from .const import (
 )
 from .exceptions import FlavorProviderError
 from .providers.culvers import CulversProvider
+from .providers.goodberrys import GoodberrysProvider
 from .providers.kopps import KoppsProvider
 from .providers.oscars import OscarsProvider
-from .providers.goodberrys import GoodberrysProvider
 
 if TYPE_CHECKING:
     from homeassistant.data_entry_flow import FlowResult
@@ -59,7 +59,9 @@ USER_SCHEMA = vol.Schema(
                     SelectOptionDict(value="culvers", label="Culver's"),
                     SelectOptionDict(value="kopps", label="Kopp's Frozen Custard"),
                     SelectOptionDict(value="oscars", label="Oscar's Frozen Custard"),
-                    SelectOptionDict(value="goodberrys", label="Goodberry's Frozen Custard"),
+                    SelectOptionDict(
+                        value="goodberrys", label="Goodberry's Frozen Custard"
+                    ),
                 ],
                 mode=SelectSelectorMode.DROPDOWN,
             )
@@ -149,7 +151,7 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         session = async_get_clientsession(self.hass)
         if provider_id in PROVIDER_CLASSES:
             provider_class = PROVIDER_CLASSES[provider_id]
-            return provider_class(session, {})
+            return provider_class(session, {})  # type: ignore[abstract]
         msg = f"Unknown provider ID: {provider_id}"
         raise ValueError(msg)
 
@@ -157,7 +159,7 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             self.provider_id = user_input[CONF_PROVIDER]
@@ -165,15 +167,14 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Create the provider instance
             session = async_get_clientsession(self.hass)
             provider_class = PROVIDER_CLASSES[self.provider_id]
-            self.provider = provider_class(session, {})
+            self.provider = provider_class(session, {})  # type: ignore[abstract]
 
             if self.provider_id in ["kopps", "oscars"]:
                 # For providers with fixed locations, get all locations
                 self.locations = await self.provider.search_locations("")
-                return await self.async_step_location_select()
-            else:
-                # For other providers, go to location search
-                return await self.async_step_location_search()
+                return await self.async_step_location_select()  # type: ignore[return-value]
+            # For other providers, go to location search
+            return await self.async_step_location_search()  # type: ignore[return-value]
 
         return self.async_show_form(
             step_id="user", data_schema=USER_SCHEMA, errors=errors
@@ -183,7 +184,7 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the location search step."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             errors = {}
@@ -201,7 +202,7 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 try:
                     # Use the provider that was already selected in the first step
                     if not self.provider:
-                        self.provider = self._get_provider_instance(self.provider_id)
+                        self.provider = self._get_provider_instance(self.provider_id)  # type: ignore[arg-type]
                     locations = await self.provider.search_locations(search_term, state)
                     if not locations:
                         errors["search_term"] = "no_locations_found"
@@ -230,7 +231,9 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             location_id = user_input[CONF_LOCATION_ID]
 
-            selected_location = next((loc for loc in self.locations if loc.store_id == location_id), None)
+            selected_location = next(
+                (loc for loc in self.locations if loc.store_id == location_id), None
+            )
 
             if not selected_location:
                 errors[CONF_LOCATION_ID] = "invalid_location"
@@ -238,18 +241,21 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(f"{self.provider_id}_{location_id}")
                 self._abort_if_unique_id_configured()
 
-                return self.async_create_entry(
-                    title=selected_location.name,
+                # Use custom name if provided, otherwise use location name
+                title = user_input.get(CONF_NAME, selected_location.name)
+
+                return self.async_create_entry(  # type: ignore[return-value]
+                    title=title,
                     data={
                         CONF_PROVIDER: self.provider_id,
                         CONF_LOCATION_ID: location_id,
+                        CONF_NAME: title,
                         "zip_code": selected_location.zip_code,
                         CONF_UPDATE_INTERVAL: user_input.get(
                             CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
                         ),
                     },
                 )
-
 
         return self.async_show_form(
             step_id="location_select",
@@ -260,7 +266,9 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @config_entries.callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> FlavorOfTheDayOptionsFlow:
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> FlavorOfTheDayOptionsFlow:
         """Get the options flow for this handler."""
         return FlavorOfTheDayOptionsFlow(config_entry)
 
@@ -272,7 +280,9 @@ class FlavorOfTheDayOptionsFlow(config_entries.OptionsFlow):
         """Initialize the options flow."""
         self.config_entry = config_entry
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)

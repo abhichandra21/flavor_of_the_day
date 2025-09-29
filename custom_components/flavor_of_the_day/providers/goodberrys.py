@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
-import aiohttp
 from bs4 import BeautifulSoup
 from homeassistant.util import dt as dt_util
 
@@ -15,9 +13,6 @@ from custom_components.flavor_of_the_day.exceptions import (
 )
 from custom_components.flavor_of_the_day.models import FlavorInfo, LocationInfo
 from custom_components.flavor_of_the_day.providers.base import BaseFlavorProvider
-
-if TYPE_CHECKING:
-    from datetime import date
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,7 +33,9 @@ class GoodberrysProvider(BaseFlavorProvider):
         return "goodberrys"
 
     async def search_locations(
-        self, search_term: str, state: str | None = None
+        self,
+        search_term: str,
+        state: str | None = None,  # noqa: ARG002
     ) -> list[LocationInfo]:
         """Return a list of all Goodberry's locations, as they are fixed."""
         known_locations = [
@@ -132,13 +129,11 @@ class GoodberrysProvider(BaseFlavorProvider):
         """Get today's flavor of the day from Goodberry's."""
         try:
             async with self.session.get(self.BASE_URL) as response:
-                if response.status != 200:
-                    msg = f"Could not access Goodberry's website for location {location_id}"
-                    raise FlavorNotAvailableError(msg)
+                if response.status != 200:  # noqa: PLR2004
+                    msg = f"Could not access Goodberry's website for location {location_id}"  # noqa: E501
+                    raise FlavorNotAvailableError(msg)  # noqa: TRY301
 
                 html = await response.text()
-                with open("goodberrys_debug.html", "w") as f:
-                    f.write(html)
                 soup = BeautifulSoup(html, "html.parser")
 
                 # Find the flavor of the day
@@ -146,7 +141,9 @@ class GoodberrysProvider(BaseFlavorProvider):
                 fotd_element = soup.select_one("[class*='flavor-of-the-day']")
                 if fotd_element:
                     # The flavor name is usually in a strong or h tag
-                    flavor_name_tag = fotd_element.find(["h1", "h2", "h3", "h4", "h5", "h6", "strong"])
+                    flavor_name_tag = fotd_element.find(
+                        ["h1", "h2", "h3", "h4", "h5", "h6", "strong"]
+                    )
                     if flavor_name_tag:
                         flavor_name = flavor_name_tag.get_text(strip=True)
                         return FlavorInfo(
@@ -154,8 +151,8 @@ class GoodberrysProvider(BaseFlavorProvider):
                             available_date=dt_util.now(),
                         )
 
-                msg = f"Could not extract flavor from Goodberry's page for location {location_id}"
-                raise FlavorNotAvailableError(msg)
+                msg = f"Could not extract flavor from Goodberry's page for location {location_id}"  # noqa: E501
+                raise FlavorNotAvailableError(msg)  # noqa: TRY301
 
         except Exception as e:
             _LOGGER.exception("Error getting current flavor from Goodberry's")

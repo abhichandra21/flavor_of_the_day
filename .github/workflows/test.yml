@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - main    
+      - main
 
 jobs:
   validate:
@@ -28,20 +28,24 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - "3.11"
+          - "3.13"
 
     steps:
       - name: 📥 Checkout the repository
         uses: actions/checkout@v4
-      - name: 🛠️ Set up Python ${{ matrix.python-version }}
+      - name: 🛠️ Set up Python
+        uses: actions/setup-python@v5
+        with:
+          fetch-depth: 2
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: 📦 Install requirements
         run: |
-          ./scripts/setup
-      - name: 🏃 Test with pytest
-        run: ./scripts/test
+          pip install tox tox-gh-actions
+      - name: 🏃 Test with tox
+        run: tox
       - name: 📤 Upload coverage to Codecov
         uses: "actions/upload-artifact@v4"
         with:

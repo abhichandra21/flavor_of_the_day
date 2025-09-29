@@ -11,7 +11,7 @@ from custom_components.flavor_of_the_day.const import DOMAIN
 
 
 @pytest.mark.asyncio
-async def test_form(hass) -> None:
+async def test_form(hass: HomeAssistant) -> None:
     """Test we can instantiate the config flow."""
     # Get the actual hass instance from the fixture
     if hasattr(hass, "__anext__"):

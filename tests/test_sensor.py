@@ -1,91 +1,68 @@
-"""Test the Flavor of the Day sensor."""
+"""Test flavor_of_the_day sensors."""
 
-from unittest.mock import AsyncMock, Mock
+from typing import Any
+from unittest.mock import patch
 
-import pytest
-from homeassistant.components.sensor import SensorEntityDescription
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.flavor_of_the_day.const import ATTRIBUTION
-from custom_components.flavor_of_the_day.models import FlavorInfo
-from custom_components.flavor_of_the_day.sensor import (
-    FlavorOfTheDaySensor,
-)
+from custom_components.flavor_of_the_day.const import DOMAIN
+
+from .const import CONFIG_DATA
 
 
-@pytest.mark.asyncio
-async def test_sensor_attributes() -> None:
-    """Test sensor attributes."""
-    mock_coordinator = AsyncMock()
-    mock_coordinator.data = FlavorInfo(
-        name="Test Flavor",
-        description="Test Description",
-        ingredients=["Ingredient 1", "Ingredient 2"],
-        allergens=["Allergen 1"],
-        available_date=None,
-        price="$4.99",
-    )
-    mock_coordinator.config_entry = Mock()
-    mock_coordinator.config_entry.entry_id = "test_entry_id"
-    mock_coordinator.config_entry.data = {"name": "Test Sensor"}
-    mock_coordinator.provider = Mock()
-    mock_coordinator.provider.provider_name = "Test Provider"
-    mock_coordinator.location_id = "test_location_id"
-    mock_coordinator.last_update_success_time = "2023-01-01T00:00:00"
-
-    entity_description = SensorEntityDescription(
-        key="flavor_of_the_day",
-        name="Flavor of the Day",
-        icon="mdi:ice-cream",
+async def test_sensors(
+    hass: HomeAssistant,
+    mock_flavor_coordinator: Any,  # noqa: ARG001
+) -> None:
+    """Test sensor setup."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Test Location",
+        data=CONFIG_DATA,
     )
 
-    sensor = FlavorOfTheDaySensor(
-        coordinator=mock_coordinator,
-        entity_description=entity_description,
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert len(hass.states.async_entity_ids(SENSOR_DOMAIN)) == 1
+    entries = hass.config_entries.async_entries(DOMAIN)
+    assert len(entries) == 1
+
+    assert DOMAIN in hass.config.components
+
+    state = hass.states.get("sensor.test_location_test_location")
+    assert state
+    assert state.state == "Chocolate Peanut Butter"
+    assert (
+        state.attributes["description"]
+        == "Rich chocolate custard with swirls of peanut butter"
+    )
+    assert state.attributes["allergens"] == ["milk", "peanuts", "soy"]
+    assert state.attributes["name"] == "Chocolate Peanut Butter"
+    assert state.attributes["provider"] == "Culver's"
+    assert state.attributes["location_id"] == "12345"
+
+
+async def test_sensor_unavailable(hass: HomeAssistant) -> None:
+    """Test sensor when flavor is unavailable."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Test Location",
+        data=CONFIG_DATA,
     )
 
-    # Test native value
-    assert sensor.native_value == "Test Flavor"
+    with patch(
+        "custom_components.flavor_of_the_day.FlavorUpdateCoordinator._async_update_data"
+    ) as mock_value:
+        mock_value.return_value = None
 
-    # Test extra state attributes
-    attrs = sensor.extra_state_attributes
-    assert attrs["name"] == "Test Flavor"
-    assert attrs["description"] == "Test Description"
-    assert attrs["ingredients"] == ["Ingredient 1", "Ingredient 2"]
-    assert attrs["allergens"] == ["Allergen 1"]
-    assert attrs["provider"] == "Test Provider"
-    assert attrs["location_id"] == "test_location_id"
-    assert attrs["last_updated"] == "2023-01-01T00:00:00"
+        entry.add_to_hass(hass)
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
 
-    # Test attribution
-    assert sensor._attr_attribution == ATTRIBUTION
-
-    # Test unique ID
-    assert sensor.unique_id == "test_entry_id_flavor_of_the_day"
-
-    # Test name
-    assert sensor.name == "Test Sensor"
-
-
-@pytest.mark.asyncio
-async def test_sensor_with_none_data() -> None:
-    """Test sensor when coordinator data is None."""
-    mock_coordinator = AsyncMock()
-    mock_coordinator.data = None
-
-    entity_description = SensorEntityDescription(
-        key="flavor_of_the_day",
-        name="Flavor of the Day",
-        icon="mdi:ice-cream",
-    )
-
-    sensor = FlavorOfTheDaySensor(
-        coordinator=mock_coordinator,
-        entity_description=entity_description,
-    )
-
-    # Test native value when data is None
-    assert sensor.native_value == "Unknown"
-
-    # Test extra state attributes when data is None
-    attrs = sensor.extra_state_attributes
-    assert attrs == {}
+        state = hass.states.get("sensor.test_location_test_location")
+        assert state
+        assert state.state == "Unknown"
