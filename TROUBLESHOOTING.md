@@ -107,7 +107,7 @@ Visit the provider's website manually to verify if location and flavor informati
 - **Culver's**: Some locations may not have online flavor information
 - **Kopp's**: Availability may vary by season
 - **Oscar's**: Limited location coverage
-- **Leduc's**: Limited location coverage
+- **Goodberry's**: Limited to North Carolina locations
 
 ### Update Frequency
 - Flavor information is only as current as the provider updates it
