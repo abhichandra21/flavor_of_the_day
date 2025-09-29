@@ -90,6 +90,13 @@ class FlavorOfTheDaySensor(CoordinatorEntity[FlavorUpdateCoordinator], SensorEnt
         return attrs
 
     @property
+    def entity_picture(self) -> str | None:
+        """Return the entity picture to use in the frontend."""
+        if self.coordinator.data and self.coordinator.data.image_url:
+            return self.coordinator.data.image_url
+        return None
+
+    @property
     def device_info(self) -> DeviceInfo:
         """Return device information for grouping."""
         return DeviceInfo(

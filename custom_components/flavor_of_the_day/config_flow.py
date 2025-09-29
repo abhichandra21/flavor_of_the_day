@@ -34,7 +34,6 @@ from .const import (
 from .exceptions import FlavorProviderError
 from .providers.culvers import CulversProvider
 from .providers.kopps import KoppsProvider
-from .providers.leducs import LeducsProvider
 from .providers.oscars import OscarsProvider
 
 if TYPE_CHECKING:
@@ -59,7 +58,6 @@ USER_SCHEMA = vol.Schema(
                     SelectOptionDict(value="culvers", label="Culver's"),
                     SelectOptionDict(value="kopps", label="Kopp's Frozen Custard"),
                     SelectOptionDict(value="oscars", label="Oscar's Frozen Custard"),
-                    SelectOptionDict(value="leducs", label="Leduc's Frozen Custard"),
                 ],
                 mode=SelectSelectorMode.DROPDOWN,
             )
@@ -128,7 +126,6 @@ PROVIDER_CLASSES = {
     "culvers": CulversProvider,
     "kopps": KoppsProvider,
     "oscars": OscarsProvider,
-    "leducs": LeducsProvider,
 }
 
 
@@ -252,4 +249,45 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=create_location_select_schema(self.locations),
             description_placeholders={"locations_count": len(self.locations)},
             errors=errors,
+        )
+
+    @staticmethod
+    @config_entries.callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> FlavorOfTheDayOptionsFlow:
+        """Get the options flow for this handler."""
+        return FlavorOfTheDayOptionsFlow(config_entry)
+
+
+class FlavorOfTheDayOptionsFlow(config_entries.OptionsFlow):
+    """Handle an options flow for Flavor of the Day."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize the options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_UPDATE_INTERVAL,
+                        default=self.config_entry.options.get(
+                            CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
+                        ),
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=5,
+                            max=1440,
+                            step=1,
+                            unit_of_measurement="minutes",
+                            mode=NumberSelectorMode.BOX,
+                        )
+                    ),
+                }
+            ),
         )

@@ -18,8 +18,9 @@ from .coordinator import FlavorUpdateCoordinator
 from .data import FlavorOfTheDayData
 from .providers.culvers import CulversProvider
 from .providers.kopps import KoppsProvider
-from .providers.leducs import LeducsProvider
 from .providers.oscars import OscarsProvider
+
+from .services import FlavorOfTheDayServices
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -32,7 +33,6 @@ PROVIDER_CLASSES = {
     "culvers": CulversProvider,
     "kopps": KoppsProvider,
     "oscars": OscarsProvider,
-    "leducs": LeducsProvider,
 }
 
 PLATFORMS = ["sensor"]
@@ -76,6 +76,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator=coordinator,
         provider=provider,
     )
+
+    # Register services
+    services = FlavorOfTheDayServices(hass)
+    services.async_register()
 
     # Forward the setup to the sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

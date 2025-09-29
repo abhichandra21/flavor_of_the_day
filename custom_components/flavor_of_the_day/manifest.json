@@ -3,8 +3,8 @@
   "name": "Flavor of the Day",
   "codeowners": ["@abhichandra21"],
   "config_flow": true,
-  "documentation": "https://github.com/abhichandra21/flavor_of_the_day",
-  "issue_tracker": "https://github.com/abhichandra21/flavor_of_the_day/issues",
+  "documentation": "https://github.com/abhichandra21/ha-flavoroftheday",
+  "issue_tracker": "https://github.com/abhichandra21/ha-flavoroftheday/issues",
   "iot_class": "cloud_polling",
   "version": "1.0.0",
   "requirements": [

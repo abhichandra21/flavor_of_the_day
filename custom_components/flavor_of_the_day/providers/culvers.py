@@ -185,9 +185,13 @@ class CulversProvider(BaseFlavorProvider):
                     msg = f"Flavor of the day not available for {location_id}"
                     raise FlavorNotAvailableError(msg)
 
+                image_slug = location_data.get("flavorOfDaySlug")
+                image_url = f"https://cdn.culvers.com/menu-item-detail/{image_slug}" if image_slug else None
+
                 return FlavorInfo(
                     name=flavor_name,
                     description=location_data.get("flavorOfTheDayDescription"),
+                    image_url=image_url,
                     available_date=dt_util.now(),
                 )
 
