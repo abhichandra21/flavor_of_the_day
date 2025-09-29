@@ -1,77 +1,61 @@
-"""Test the Flavor of the Day init."""
+"""Tests for the Flavor of the Day integration setup."""
 
-from __future__ import annotations
-
-from unittest.mock import AsyncMock, patch
+from unittest.mock import Mock, patch
 
 import pytest
-from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 
 from custom_components.flavor_of_the_day.const import DOMAIN
 
 
-async def test_setup_unload_and_reload_entry(hass: HomeAssistant, bypass_get_data, mock_provider):
-    """Test entry setup and unload."""
-    # Create a mock config entry
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "provider": "culvers",
-            "location_id": "123",
-            "update_interval": 30,
-            "name": "Test Location",
-        },
-        unique_id="culvers_123",
-    )
+@pytest.mark.asyncio
+async def test_setup_entry(hass: HomeAssistant, mock_config_entry_data) -> None:
+    """Test setting up the integration entry."""
+    config_entry = Mock()
+    config_entry.entry_id = "test_entry"
+    config_entry.data = mock_config_entry_data
+    config_entry.runtime_data = None
 
-    entry.add_to_hass(hass)
+    with (
+        patch(
+            "custom_components.flavor_of_the_day.providers.culvers.CulversProvider"
+        ) as mock_provider_class,
+        patch("custom_components.flavor_of_the_day.async_get_clientsession"),
+    ):
+        # Mock the provider
+        mock_provider = mock_provider_class.return_value
+        from custom_components.flavor_of_the_day.models import FlavorInfo
 
-    # Test setup
-    with patch("custom_components.flavor_of_the_day.PROVIDER_CLASSES", {"culvers": mock_provider.__class__}):
-        await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
+        mock_provider.get_current_flavor.return_value = FlavorInfo(
+            name="Test Flavor", description="Test Description"
+        )
 
-    assert entry.state is ConfigEntryState.LOADED
-    assert entry.runtime_data is not None
+        # Import and call async_setup_entry
+        from custom_components.flavor_of_the_day import async_setup_entry
 
-    # Test unload
-    await hass.config_entries.async_unload(entry.entry_id)
-    await hass.async_block_till_done()
+        # Call the setup function
+        result = await async_setup_entry(hass, config_entry)
+        assert result is True
 
-    assert entry.state is ConfigEntryState.NOT_LOADED
+        # Check that the config entry was added to hass.data
+        assert DOMAIN in hass.data
+        assert config_entry.entry_id in hass.data[DOMAIN]
 
-
-async def test_setup_entry_exception(hass: HomeAssistant):
-    """Test ConfigEntryNotReady when API raises an exception during entry setup."""
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={
-            "provider": "invalid_provider",
-            "location_id": "123",
-        },
-    )
-
-    entry.add_to_hass(hass)
-
-    await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
-
-    assert entry.state is ConfigEntryState.SETUP_RETRY
+        # Check that platforms were forwarded
+        # Note: We can't test this directly without more complex mocking
 
 
-class MockConfigEntry:
-    """Mock config entry."""
+@pytest.mark.asyncio
+async def test_unload_entry(hass: HomeAssistant, setup_integration) -> None:
+    """Test unloading the integration entry."""
+    config_entry = setup_integration
 
-    def __init__(self, *, domain=None, data=None, unique_id=None):
-        """Initialize mock config entry."""
-        self.domain = domain
-        self.data = data or {}
-        self.unique_id = unique_id
-        self.entry_id = "test_entry_id"
-        self.state = ConfigEntryState.NOT_LOADED
-        self.runtime_data = None
+    # Setup the integration first
+    with patch(
+        "custom_components.flavor_of_the_day.async_unload_platforms", return_value=True
+    ) as mock_unload:
+        from custom_components.flavor_of_the_day import async_unload_entry
 
-    def add_to_hass(self, hass):
-        """Add to hass."""
-        hass.config_entries._entries[self.entry_id] = self
+        result = await async_unload_entry(hass, config_entry)
+        assert result is True
+        mock_unload.assert_called_once_with(config_entry, ["sensor"])

@@ -1,21 +1,19 @@
-"""Sensor platform for the Flavor of the Day integration."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+
+from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import ATTRIBUTION, DOMAIN
+from .coordinator import FlavorUpdateCoordinator
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
-from homeassistant.components.sensor.const import SensorDeviceClass
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
-from .const import ATTRIBUTION, DOMAIN
-from .coordinator import FlavorUpdateCoordinator
 
 # Entity descriptions for declarative entity definitions
 SENSOR_DESCRIPTIONS = (
@@ -23,7 +21,6 @@ SENSOR_DESCRIPTIONS = (
         key="flavor_of_the_day",
         name="Flavor of the Day",
         icon="mdi:ice-cream",
-        device_class=SensorDeviceClass.ENUM,
     ),
 )
 
@@ -87,7 +84,7 @@ class FlavorOfTheDaySensor(CoordinatorEntity[FlavorUpdateCoordinator], SensorEnt
             {
                 "provider": self.coordinator.provider.provider_name,
                 "location_id": self.coordinator.location_id,
-                "last_updated": self.coordinator.last_update_success_time,
+                "last_updated": self.coordinator.last_update_success,
             }
         )
         return attrs

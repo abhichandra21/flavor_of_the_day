@@ -1,0 +1,43 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Select Provider",
+        "description": "Choose the ice cream store chain to track flavors for.",
+        "data": {
+          "provider": "Provider"
+        }
+      },
+      "location_search": {
+        "title": "Search for Location",
+        "description": "Enter the city or ZIP code to find nearby locations.",
+        "data": {
+          "search_term": "City or ZIP Code",
+          "state": "State (Optional)"
+        }
+      },
+      "location_select": {
+        "title": "Select Location",
+        "description": "Found {locations_count} locations. Select your preferred location.",
+        "data": {
+          "location_id": "Location",
+          "name": "Custom Name (Optional)",
+          "update_interval": "Update Interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "required": "Search term is required.",
+      "too_short": "Search term must be at least 2 characters long.",
+      "no_locations_found": "No locations found. Please try a different search term.",
+      "provider_error": "Error communicating with provider. Please try again.",
+      "network_error": "Network error occurred. Please check your connection.",
+      "unknown_error": "An unknown error occurred.",
+      "connection_failed": "Could not connect to the selected location.",
+      "invalid_update_interval": "Update interval must be between 5 and 1440 minutes."
+    },
+    "abort": {
+      "already_configured": "Location is already configured."
+    }
+  }
+}

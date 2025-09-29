@@ -1,27 +1,35 @@
-"""Config flow for the Flavor of the Day integration."""
+"""Config flow for Flavor of the Day integration."""
 
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
 
+import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import selector
+from homeassistant.const import CONF_NAME, CONF_STATE
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-
-if TYPE_CHECKING:
-    from .models import LocationInfo
-    from .providers.base import BaseFlavorProvider
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .const import (
     CONF_LOCATION_ID,
-    CONF_NAME,
     CONF_PROVIDER,
     CONF_UPDATE_INTERVAL,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
+    US_STATES,
 )
 from .exceptions import FlavorProviderError
 from .providers.culvers import CulversProvider
@@ -29,26 +37,31 @@ from .providers.kopps import KoppsProvider
 from .providers.leducs import LeducsProvider
 from .providers.oscars import OscarsProvider
 
+if TYPE_CHECKING:
+    from homeassistant.data_entry_flow import FlowResult
+
+    from .models import LocationInfo
+    from .providers.base import BaseFlavorProvider
+
+# Constants for validation
+MIN_SEARCH_TERM_LENGTH = 2
+MIN_UPDATE_INTERVAL = 5
+MAX_UPDATE_INTERVAL = 1440
+
 _LOGGER = logging.getLogger(__name__)
 
 # Provider selection schema with HA selector
 USER_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_PROVIDER): selector.SelectSelector(
-            selector.SelectSelectorConfig(
+        vol.Required(CONF_PROVIDER): SelectSelector(
+            SelectSelectorConfig(
                 options=[
-                    selector.SelectOptionDict(value="culvers", label="Culver's"),
-                    selector.SelectOptionDict(
-                        value="kopps", label="Kopp's Frozen Custard"
-                    ),
-                    selector.SelectOptionDict(
-                        value="oscars", label="Oscar's Frozen Custard"
-                    ),
-                    selector.SelectOptionDict(
-                        value="leducs", label="Leduc's Frozen Custard"
-                    ),
+                    SelectOptionDict(value="culvers", label="Culver's"),
+                    SelectOptionDict(value="kopps", label="Kopp's Frozen Custard"),
+                    SelectOptionDict(value="oscars", label="Oscar's Frozen Custard"),
+                    SelectOptionDict(value="leducs", label="Leduc's Frozen Custard"),
                 ],
-                mode=selector.SelectSelectorMode.DROPDOWN,
+                mode=SelectSelectorMode.DROPDOWN,
             )
         ),
     }
@@ -57,14 +70,18 @@ USER_SCHEMA = vol.Schema(
 # Location search schema with HA selectors
 LOCATION_SEARCH_SCHEMA = vol.Schema(
     {
-        vol.Required("search_term"): selector.TextSelector(
-            selector.TextSelectorConfig(
-                type=selector.TextSelectorType.TEXT,
+        vol.Required("search_term"): TextSelector(
+            TextSelectorConfig(
+                type=TextSelectorType.TEXT,
             )
         ),
-        vol.Optional("state"): selector.TextSelector(
-            selector.TextSelectorConfig(
-                type=selector.TextSelectorType.TEXT,
+        vol.Optional("state"): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    SelectOptionDict(value=abbr, label=name)
+                    for abbr, name in US_STATES.items()
+                ],
+                mode=SelectSelectorMode.DROPDOWN,
             )
         ),
     }
@@ -75,34 +92,32 @@ LOCATION_SEARCH_SCHEMA = vol.Schema(
 def create_location_select_schema(locations: list[LocationInfo]) -> vol.Schema:
     """Create location selection schema with dynamic options."""
     location_options = [
-        selector.SelectOptionDict(
-            value=location.store_id, label=location.display_name()
-        )
+        SelectOptionDict(value=location.store_id, label=location.display_name())
         for location in locations
     ]
 
     return vol.Schema(
         {
-            vol.Required(CONF_LOCATION_ID): selector.SelectSelector(
-                selector.SelectSelectorConfig(
+            vol.Required(CONF_LOCATION_ID): SelectSelector(
+                SelectSelectorConfig(
                     options=location_options,
-                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    mode=SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Optional(CONF_NAME): selector.TextSelector(
-                selector.TextSelectorConfig(
-                    type=selector.TextSelectorType.TEXT,
+            vol.Optional(CONF_NAME): TextSelector(
+                TextSelectorConfig(
+                    type=TextSelectorType.TEXT,
                 )
             ),
             vol.Optional(
                 CONF_UPDATE_INTERVAL, default=DEFAULT_UPDATE_INTERVAL
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
+            ): NumberSelector(
+                NumberSelectorConfig(
                     min=5,
                     max=1440,
                     step=1,
                     unit_of_measurement="minutes",
-                    mode=selector.NumberSelectorMode.BOX,
+                    mode=NumberSelectorMode.BOX,
                 )
             ),
         }
@@ -128,6 +143,15 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.provider_id: str | None = None
         self.locations: list[LocationInfo] = []
         self.location_details: LocationInfo | None = None
+
+    def _get_provider_instance(self, provider_id: str) -> BaseFlavorProvider:
+        """Get a provider instance based on provider ID."""
+        session = async_get_clientsession(self.hass)
+        if provider_id in PROVIDER_CLASSES:
+            provider_class = PROVIDER_CLASSES[provider_id]
+            return provider_class(session, {})
+        msg = f"Unknown provider ID: {provider_id}"
+        raise ValueError(msg)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -159,33 +183,36 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            search_term = user_input.get("search_term")
-            state = user_input.get("state")
+            errors = {}
+
+            search_term = user_input.get("search_term", "").strip()
+            state = user_input.get(CONF_STATE)
+
+            min_search_term_len = 2
 
             if not search_term:
-                errors["search_term"] = "Search term is required"
+                errors["search_term"] = "required"
+            elif len(search_term) < min_search_term_len:
+                errors["search_term"] = "too_short"
             else:
                 try:
-                    # Search for locations using the provider
-                    self.locations = await self.provider.search_locations(
-                        search_term, state
-                    )
-
-                    if not self.locations:
+                    # Use the provider that was already selected in the first step
+                    if not self.provider:
+                        self.provider = self._get_provider_instance(self.provider_id)
+                    locations = await self.provider.search_locations(search_term, state)
+                    if not locations:
                         errors["search_term"] = "no_locations_found"
                     else:
-                        # If we found exactly one location, skip location selection
-                        if len(self.locations) == 1:
-                            self.location_details = self.locations[0]
-                            return await self.async_step_location_select()
-
-                        # Multiple locations found - show selection form
+                        self.locations = locations
                         return await self.async_step_location_select()
-                except FlavorProviderError as e:
-                    _LOGGER.error("Provider error searching for locations: %s", e)
+                except FlavorProviderError:
+                    _LOGGER.exception("Provider error searching for locations")
                     errors["search_term"] = "provider_error"
-                except Exception as e:
-                    _LOGGER.error("Unexpected error searching for locations: %s", e)
+                except (TimeoutError, aiohttp.ClientError):
+                    _LOGGER.exception("Network error searching for locations")
+                    errors["search_term"] = "network_error"
+                except Exception:
+                    _LOGGER.exception("Unexpected error searching for locations")
                     errors["search_term"] = "unknown_error"
 
         return self.async_show_form(
@@ -197,60 +224,39 @@ class FlavorOfTheDayConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the location selection step."""
         errors = {}
-
-        # If location_details is already set (from single location case), skip this step
-        if self.location_details:
-            return await self.async_step_final()
-
         if user_input is not None:
             location_id = user_input[CONF_LOCATION_ID]
-            custom_name = user_input.get(CONF_NAME)
-            update_interval = user_input.get(
-                CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
-            )
 
             try:
-                # Verify the location and get details
+                # Get full location details using the provider
                 self.location_details = await self.provider.get_location_by_id(
                     location_id
                 )
 
-                # Test connection to the location
-                if not await self.provider.test_connection(location_id):
-                    errors[CONF_LOCATION_ID] = "connection_failed"
-                else:
-                    # Set final unique ID with location
-                    await self.async_set_unique_id(
-                        f"{DOMAIN}_{self.provider_id}_{location_id}"
-                    )
-                    self._abort_if_unique_id_configured()
-
-                    # Create the config entry
-                    title = custom_name or self.location_details.display_name()
-                    return self.async_create_entry(
-                        title=title,
-                        data={
-                            CONF_PROVIDER: self.provider_id,
-                            CONF_LOCATION_ID: location_id,
-                            CONF_UPDATE_INTERVAL: update_interval,
-                            CONF_NAME: custom_name or self.location_details.name,
-                        },
-                    )
-            except FlavorProviderError as e:
-                _LOGGER.error("Provider error getting location details: %s", e)
+                # Create the config entry
+                return self.async_create_entry(
+                    title=self.location_details.name,
+                    data={
+                        CONF_PROVIDER: self.provider_id,
+                        CONF_LOCATION_ID: location_id,
+                        CONF_UPDATE_INTERVAL: user_input.get(
+                            CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
+                        ),
+                    },
+                )
+            except FlavorProviderError:
+                _LOGGER.exception("Provider error getting location details")
                 errors[CONF_LOCATION_ID] = "provider_error"
-            except Exception as e:
-                _LOGGER.error("Unexpected error getting location details: %s", e)
+            except (TimeoutError, aiohttp.ClientError):
+                _LOGGER.exception("Network error getting location details")
+                errors[CONF_LOCATION_ID] = "network_error"
+            except Exception:
+                _LOGGER.exception("Unexpected error getting location details")
                 errors[CONF_LOCATION_ID] = "unknown_error"
-
-        # Create schema with dynamic location options
-        schema = create_location_select_schema(self.locations)
 
         return self.async_show_form(
             step_id="location_select",
-            data_schema=schema,
+            data_schema=create_location_select_schema(self.locations),
+            description_placeholders={"locations_count": len(self.locations)},
             errors=errors,
-            description_placeholders={
-                "locations_count": len(self.locations),
-            },
         )

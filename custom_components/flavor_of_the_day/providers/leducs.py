@@ -1,13 +1,17 @@
-"""Leduc's provider for the Flavor of the Day integration."""
+from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date
 
 from bs4 import BeautifulSoup
+from homeassistant.util import dt as dt_util
 
-from ..exceptions import FlavorNotAvailableError, LocationNotFoundError
-from ..models import FlavorInfo, LocationInfo
-from .base import BaseFlavorProvider
+from custom_components.flavor_of_the_day.exceptions import (
+    FlavorNotAvailableError,
+    LocationNotFoundError,
+)
+from custom_components.flavor_of_the_day.models import FlavorInfo, LocationInfo
+from custom_components.flavor_of_the_day.providers.base import BaseFlavorProvider
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,10 +23,12 @@ class LeducsProvider(BaseFlavorProvider):
 
     @property
     def provider_name(self) -> str:
+        """Display name for this provider."""
         return "Leduc's Frozen Custard"
 
     @property
     def provider_id(self) -> str:
+        """Unique identifier for this provider."""
         return "leducs"
 
     async def search_locations(
@@ -45,8 +51,8 @@ class LeducsProvider(BaseFlavorProvider):
                     return [location]
                 return []  # No match based on search criteria
             return [location]
-        except Exception as e:
-            _LOGGER.error(f"Error during location search: {e}")
+        except Exception:
+            _LOGGER.exception("Error during location search")
             return []
 
     async def get_location_by_id(self, location_id: str) -> LocationInfo:
@@ -72,7 +78,8 @@ class LeducsProvider(BaseFlavorProvider):
                 },
                 website_url=self.BASE_URL,
             )
-        raise LocationNotFoundError(f"Location with ID {location_id} not found")
+        msg = f"Location with ID {location_id} not found"
+        raise LocationNotFoundError(msg)
 
     async def get_current_flavor(self, location_id: str) -> FlavorInfo:
         """Get today's flavor of the day from Leduc's."""
@@ -80,9 +87,8 @@ class LeducsProvider(BaseFlavorProvider):
             # Get the main page to find today's flavor
             async with self.session.get(self.BASE_URL) as response:
                 if response.status != 200:
-                    raise FlavorNotAvailableError(
-                        f"Could not access Leduc's website for location {location_id}"
-                    )
+                    msg = f"Could not access Leduc's website for location {location_id}"
+                    raise FlavorNotAvailableError(msg)
 
                 html = await response.text()
                 soup = BeautifulSoup(html, "html.parser")
@@ -98,10 +104,10 @@ class LeducsProvider(BaseFlavorProvider):
                     parent = soup  # If not found, search in the whole document
 
                 # Look for today's date and the corresponding flavor
-                today = datetime.now()
+                today = dt_util.now()
                 date_str = today.strftime("%b %d").replace(
                     " 0", " "
-                )  # Format: "Sep 27"
+                )  # Format like "Jan 1"
 
                 # Find elements that contain the date
                 date_elements = parent.find_all(
@@ -176,14 +182,12 @@ class LeducsProvider(BaseFlavorProvider):
                                         name=flavor_text, available_date=today
                                     )
 
-                raise FlavorNotAvailableError(
-                    f"No flavor data available for location {location_id}"
-                )
-        except Exception as e:
-            _LOGGER.error(f"Error getting current flavor: {e}")
-            raise FlavorNotAvailableError(
-                f"Could not retrieve flavor for location {location_id}"
-            )
+                msg = f"No flavor data available for location {location_id}"
+                raise FlavorNotAvailableError(msg)
+        except Exception:
+            _LOGGER.exception("Error getting current flavor")
+            msg = f"Could not retrieve flavor for location {location_id}"
+            raise FlavorNotAvailableError(msg)
 
     async def get_upcoming_flavors(
         self, location_id: str, days: int = 7
@@ -193,7 +197,7 @@ class LeducsProvider(BaseFlavorProvider):
             async with self.session.get(f"{self.BASE_URL}/flavor-calendar") as response:
                 if response.status != 200:
                     _LOGGER.debug(
-                        f"Flavor calendar page not accessible: {response.status}"
+                        "Flavor calendar page not accessible: %s", response.status
                     )
                     return []
 
@@ -275,11 +279,11 @@ class LeducsProvider(BaseFlavorProvider):
                                         )
                         except Exception as e:
                             _LOGGER.debug(
-                                f"Error parsing date from: {date_text}, error: {e}"
+                                "Error parsing date from: %s, error: %s", date_text, e
                             )
                             continue
 
                 return upcoming_flavors
         except Exception as e:
-            _LOGGER.debug(f"Error getting upcoming flavors: {e}")
+            _LOGGER.debug("Error getting upcoming flavors: %s", e)
             return []

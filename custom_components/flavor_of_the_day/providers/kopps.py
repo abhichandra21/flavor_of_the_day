@@ -1,14 +1,23 @@
-"""Kopp's provider for the Flavor of the Day integration."""
+"""Kopp's Frozen Custard provider implementation."""
+
+from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from typing import TYPE_CHECKING
 
 import aiohttp
 from bs4 import BeautifulSoup
+from homeassistant.util import dt as dt_util
 
-from ..exceptions import FlavorNotAvailableError, LocationNotFoundError
-from ..models import FlavorInfo, LocationInfo
-from .base import BaseFlavorProvider
+from custom_components.flavor_of_the_day.exceptions import (
+    FlavorNotAvailableError,
+    LocationNotFoundError,
+)
+from custom_components.flavor_of_the_day.models import FlavorInfo, LocationInfo
+from custom_components.flavor_of_the_day.providers.base import BaseFlavorProvider
+
+if TYPE_CHECKING:
+    from datetime import date
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,10 +29,12 @@ class KoppsProvider(BaseFlavorProvider):
 
     @property
     def provider_name(self) -> str:
+        """Return the provider name."""
         return "Kopp's Frozen Custard"
 
     @property
     def provider_id(self) -> str:
+        """Return the provider ID."""
         return "kopps"
 
     async def search_locations(
@@ -37,7 +48,7 @@ class KoppsProvider(BaseFlavorProvider):
             async with self.session.get(f"{self.BASE_URL}/locations") as response:
                 if response.status != 200:
                     _LOGGER.warning(
-                        f"Locations page failed with status {response.status}"
+                        "Locations page failed with status %s", response.status
                     )
                     return []
 
@@ -89,11 +100,11 @@ class KoppsProvider(BaseFlavorProvider):
                     locations = filtered_locations
 
                 return locations
-        except aiohttp.ClientError as e:
-            _LOGGER.error(f"Network error during location search: {e}")
+        except aiohttp.ClientError:
+            _LOGGER.exception("Network error during location search")
             return []
-        except Exception as e:
-            _LOGGER.error(f"Error during location search: {e}")
+        except Exception:
+            _LOGGER.exception("Error during location search")
             return []
 
     async def _extract_locations_from_main_page(self) -> list[LocationInfo]:
@@ -113,7 +124,7 @@ class KoppsProvider(BaseFlavorProvider):
                 # Look for elements that might contain location information
 
                 # Find address patterns
-                address_elements = soup.find_all(
+                soup.find_all(
                     string=lambda text: text
                     and any(
                         addr_word in text.lower()
@@ -137,7 +148,7 @@ class KoppsProvider(BaseFlavorProvider):
                 import re
 
                 phone_pattern = r"\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}"
-                phone_elements = soup.find_all(
+                soup.find_all(
                     string=lambda text: text and re.search(phone_pattern, text)
                 )
 
@@ -163,8 +174,8 @@ class KoppsProvider(BaseFlavorProvider):
                         locations.append(location)
 
                 return locations
-        except Exception as e:
-            _LOGGER.error(f"Error extracting locations from main page: {e}")
+        except Exception:
+            _LOGGER.exception("Error extracting locations from main page")
             return []
 
     def _parse_location_from_header(self, header_element) -> LocationInfo | None:
@@ -209,7 +220,7 @@ class KoppsProvider(BaseFlavorProvider):
                 if phone_match:
                     phone = phone_match.group()
 
-            location = LocationInfo(
+            return LocationInfo(
                 store_id=store_id,
                 name=f"Kopp's Frozen Custard - {city}",
                 address=address,
@@ -217,9 +228,8 @@ class KoppsProvider(BaseFlavorProvider):
                 state=state,
                 phone=phone,
             )
-            return location
-        except Exception as e:
-            _LOGGER.error(f"Error parsing location from header: {e}")
+        except Exception:
+            _LOGGER.exception("Error parsing location from header")
             return None
 
     def _parse_location_from_block(
@@ -326,7 +336,8 @@ class KoppsProvider(BaseFlavorProvider):
 
         if location_id in known_locations:
             return known_locations[location_id]
-        raise LocationNotFoundError(f"Location with ID {location_id} not found")
+        msg = f"Location with ID {location_id} not found"
+        raise LocationNotFoundError(msg)
 
     async def get_current_flavor(self, location_id: str) -> FlavorInfo:
         """Get today's flavor of the day from Kopp's."""
@@ -334,9 +345,8 @@ class KoppsProvider(BaseFlavorProvider):
             # Kopp's shows today's flavors on their main page
             async with self.session.get(self.BASE_URL) as response:
                 if response.status != 200:
-                    raise FlavorNotAvailableError(
-                        f"Could not access Kopp's website for location {location_id}"
-                    )
+                    msg = f"Could not access Kopp's website for location {location_id}"
+                    raise FlavorNotAvailableError(msg)
 
                 html = await response.text()
                 soup = BeautifulSoup(html, "html.parser")
@@ -393,17 +403,15 @@ class KoppsProvider(BaseFlavorProvider):
                             and "flavor" not in flavor_text.lower()
                         ):
                             return FlavorInfo(
-                                name=flavor_text, available_date=datetime.now()
+                                name=flavor_text, available_date=dt_util.now()
                             )
 
-                raise FlavorNotAvailableError(
-                    f"No flavor data available for location {location_id}"
-                )
-        except Exception as e:
-            _LOGGER.error(f"Error getting current flavor: {e}")
-            raise FlavorNotAvailableError(
-                f"Could not retrieve flavor for location {location_id}"
-            )
+                msg = f"No flavor data available for location {location_id}"
+                raise FlavorNotAvailableError(msg)
+        except Exception:
+            _LOGGER.exception("Error getting current flavor")
+            msg = f"Could not retrieve flavor for location {location_id}"
+            raise FlavorNotAvailableError(msg)
 
     def _extract_flavors_from_section(self, section) -> FlavorInfo | None:
         """Extract flavor information from a specific section."""
@@ -431,7 +439,7 @@ class KoppsProvider(BaseFlavorProvider):
                         word[0].isupper() for word in words if len(word) > 2
                     ):
                         return FlavorInfo(
-                            name=flavor_text, available_date=datetime.now()
+                            name=flavor_name, available_date=dt_util.now()
                         )
 
             # If the above didn't work, look for any text elements that might contain flavors
@@ -449,11 +457,13 @@ class KoppsProvider(BaseFlavorProvider):
                     if len(words) > 0 and any(
                         word[0].isupper() for word in words if len(word) > 2
                     ):
-                        return FlavorInfo(name=text, available_date=datetime.now())
+                        return FlavorInfo(
+                            name=flavor_text, available_date=dt_util.now()
+                        )
 
             return None
-        except Exception as e:
-            _LOGGER.error(f"Error extracting flavors from section: {e}")
+        except Exception:
+            _LOGGER.exception("Error extracting flavors from section")
             return None
 
     async def get_upcoming_flavors(
@@ -489,13 +499,13 @@ class KoppsProvider(BaseFlavorProvider):
                     if date_elem and flavor_elem:
                         # Parse date and flavor
                         # This would need proper date parsing in real implementation
-                        flavor_info = FlavorInfo(
+                        FlavorInfo(
                             name=flavor_elem.get_text(strip=True),
-                            available_date=datetime.now(),  # Simplified
+                            available_date=dt_util.now(),  # Simplified
                         )
                         # Add to results (date would need to be properly parsed)
 
                 return upcoming_flavors
         except Exception as e:
-            _LOGGER.debug(f"Error getting upcoming flavors: {e}")
+            _LOGGER.debug("Error getting upcoming flavors: %s", e)
             return []

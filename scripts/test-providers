@@ -5,7 +5,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "🌐 Testing Provider Connectivity"
-echo "================================"
+echo "==============================="
 
 # Try to use virtual environment if available
 if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
@@ -25,13 +25,14 @@ else
 fi
 
 # Test provider connectivity without full HA setup
-$PYTHON_CMD -c "
+$PYTHON_CMD <<EOF
 import asyncio
 import aiohttp
 import sys
-sys.path.insert(0, 'custom_components')
+sys.path.insert(0, '.')
 
-from flavor_of_the_day.providers.culvers import CulversProvider
+# Import the provider directly to avoid HA dependencies
+from custom_components.flavor_of_the_day.providers.culvers import CulversProvider
 
 async def test_providers():
     async with aiohttp.ClientSession() as session:
@@ -39,32 +40,48 @@ async def test_providers():
         provider = CulversProvider(session, {})
 
         try:
-            # Test connection
-            can_connect = await provider.test_connection()
-            print(f'  Connection: {'✅ OK' if can_connect else '❌ Failed'}')
-
-            # Test location search
+            # Test location search first
             locations = await provider.search_locations('Madison', 'WI')
             print(f'  Location search: ✅ Found {len(locations)} locations')
 
             if locations:
-                # Test getting specific location
-                location = await provider.get_location_by_id(locations[0]['store_id'])
-                print(f'  Location details: ✅ Got details for {location['name']}')
+                location = locations[0]
+                print(f'  Test location: {location.name} ({location.store_id})')
 
-                # Test getting flavor (might fail, that's OK)
+                # Test getting specific location details
                 try:
-                    flavor = await provider.get_current_flavor(locations[0]['store_id'])
-                    print(f'  Current flavor: ✅ {flavor['name']}')
+                    location_details = await provider.get_location_by_id(location.store_id)
+                    print(f'  Location details: ✅ Got details for {location_details.name}')
+                except Exception as e:
+                    print(f'  Location details: ⚠️  Could not fetch ({str(e)[:50]}...)')
+
+                # Test connection using the found location
+                try:
+                    can_connect = await provider.test_connection(location.store_id)
+                    if can_connect:
+                        print('  Connection test: ✅ OK')
+                    else:
+                        print('  Connection test: ❌ Failed')
+                except Exception as e:
+                    print(f'  Connection test: ❌ Failed ({str(e)[:50]}...)')
+
+                # Test getting flavor
+                try:
+                    flavor = await provider.get_current_flavor(location.store_id)
+                    print(f'  Current flavor: ✅ {flavor.name}')
+                    if flavor.description:
+                        print(f'    Description: {flavor.description[:100]}...')
                 except Exception as e:
                     print(f'  Current flavor: ⚠️  Could not fetch ({str(e)[:50]}...)')
+            else:
+                print('  ⚠️  No locations found to test connection')
 
         except Exception as e:
             print(f'  ❌ Provider test failed: {e}')
 
 if __name__ == '__main__':
     asyncio.run(test_providers())
-"
+EOF
 
 echo ""
 echo "Provider connectivity test complete!"

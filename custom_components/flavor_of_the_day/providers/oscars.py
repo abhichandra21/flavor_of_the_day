@@ -1,14 +1,21 @@
-"""Oscar's provider for the Flavor of the Day integration."""
+from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from typing import TYPE_CHECKING
 
 import aiohttp
 from bs4 import BeautifulSoup
+from homeassistant.util import dt as dt_util
 
-from ..exceptions import FlavorNotAvailableError, LocationNotFoundError
-from ..models import FlavorInfo, LocationInfo
-from .base import BaseFlavorProvider
+from custom_components.flavor_of_the_day.exceptions import (
+    FlavorNotAvailableError,
+    LocationNotFoundError,
+)
+from custom_components.flavor_of_the_day.models import FlavorInfo, LocationInfo
+from custom_components.flavor_of_the_day.providers.base import BaseFlavorProvider
+
+if TYPE_CHECKING:
+    from datetime import date
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,10 +27,12 @@ class OscarsProvider(BaseFlavorProvider):
 
     @property
     def provider_name(self) -> str:
+        """Display name for this provider."""
         return "Oscar's Frozen Custard"
 
     @property
     def provider_id(self) -> str:
+        """Unique identifier for this provider."""
         return "oscars"
 
     async def search_locations(
@@ -46,7 +55,8 @@ class OscarsProvider(BaseFlavorProvider):
                         return locations
                 else:
                     _LOGGER.debug(
-                        f"Locations page not found, trying main page: {response.status}"
+                        "Locations page not found, trying main page: %s",
+                        response.status,
                     )
 
             # If the locations page doesn't exist or isn't helpful,
@@ -56,17 +66,14 @@ class OscarsProvider(BaseFlavorProvider):
                     html = await response.text()
                     soup = BeautifulSoup(html, "html.parser")
 
-                    locations = self._parse_locations_from_page(
-                        soup, search_term, state
-                    )
-                    return locations
-                _LOGGER.warning(f"Main page failed with status {response.status}")
+                    return self._parse_locations_from_page(soup, search_term, state)
+                _LOGGER.warning("Main page failed with status %s", response.status)
                 return []
-        except aiohttp.ClientError as e:
-            _LOGGER.error(f"Network error during location search: {e}")
+        except aiohttp.ClientError:
+            _LOGGER.exception("Network error during location search")
             return []
-        except Exception as e:
-            _LOGGER.error(f"Error during location search: {e}")
+        except Exception:
+            _LOGGER.exception("Error during location search")
             return []
 
     def _parse_locations_from_page(
@@ -101,7 +108,7 @@ class OscarsProvider(BaseFlavorProvider):
         # If no locations found via selectors, try parsing addresses in a more general way
         if not locations:
             # Look for address patterns in all text
-            all_text = soup.get_text()
+            soup.get_text()
 
             # Define known Oscar's locations based on general knowledge
             # Oscar's is a regional chain with limited locations
@@ -181,7 +188,7 @@ class OscarsProvider(BaseFlavorProvider):
                     city.lower().replace(" ", "").replace(".", "").replace("'", "")
                 )
                 store_id = f"oscars-{city_clean}"
-                location = LocationInfo(
+                return LocationInfo(
                     store_id=store_id,
                     name=f"Oscar's Frozen Custard - {city}",
                     address=address_match.group(0)
@@ -190,9 +197,8 @@ class OscarsProvider(BaseFlavorProvider):
                     city=city,
                     state=state,
                 )
-                return location
         except Exception as e:
-            _LOGGER.debug(f"Error parsing location from element: {e}")
+            _LOGGER.debug("Error parsing location from element: %s", e)
 
         return None
 
@@ -205,7 +211,8 @@ class OscarsProvider(BaseFlavorProvider):
             if location.store_id == location_id:
                 return location
 
-        raise LocationNotFoundError(f"Location with ID {location_id} not found")
+        msg = f"Location with ID {location_id} not found"
+        raise LocationNotFoundError(msg)
 
     async def get_current_flavor(self, location_id: str) -> FlavorInfo:
         """Get today's flavor of the day from Oscar's."""
@@ -214,7 +221,7 @@ class OscarsProvider(BaseFlavorProvider):
             async with self.session.get(self.BASE_URL) as response:
                 if response.status != 200:
                     _LOGGER.debug(
-                        f"Website access failed with status {response.status}"
+                        "Website access failed with status %s", response.status
                     )
                     # Try alternative methods such as social media or special flavor pages
                     return await self._get_flavor_from_social_media(location_id)
@@ -244,7 +251,7 @@ class OscarsProvider(BaseFlavorProvider):
                             and "flavor" not in flavor_text.lower()
                         ):
                             return FlavorInfo(
-                                name=flavor_text, available_date=datetime.now()
+                                name=flavor_text, available_date=dt_util.now()
                             )
 
                 # If specific selectors don't work, look for any mention of today's flavors
@@ -262,20 +269,19 @@ class OscarsProvider(BaseFlavorProvider):
                             flavor_name = sibling.get_text(strip=True)
                             if flavor_name and len(flavor_name) < 100:
                                 return FlavorInfo(
-                                    name=flavor_name, available_date=datetime.now()
+                                    name=flavor_name, available_date=dt_util.now()
                                 )
 
                 # If we still can't get the flavor from the website, try social media
                 return await self._get_flavor_from_social_media(location_id)
-        except Exception as e:
-            _LOGGER.error(f"Error getting current flavor: {e}")
+        except Exception:
+            _LOGGER.exception("Error getting current flavor")
             # Try to get from social media as fallback
             try:
                 return await self._get_flavor_from_social_media(location_id)
             except:
-                raise FlavorNotAvailableError(
-                    f"Could not retrieve flavor for location {location_id}"
-                )
+                msg = f"Could not retrieve flavor for location {location_id}"
+                raise FlavorNotAvailableError(msg)
 
     async def _get_flavor_from_social_media(self, location_id: str) -> FlavorInfo:
         """Get flavor information from social media as a fallback."""
@@ -290,9 +296,8 @@ class OscarsProvider(BaseFlavorProvider):
 
         # This is where we would implement social media scraping if possible
         # For now, raise an exception to be caught by the caller
-        raise FlavorNotAvailableError(
-            f"No flavor data available for Oscar's location {location_id}"
-        )
+        msg = f"No flavor data available for Oscar's location {location_id}"
+        raise FlavorNotAvailableError(msg)
 
     async def get_upcoming_flavors(
         self, location_id: str, days: int = 7

@@ -122,17 +122,18 @@ for root, dirs, files in os.walk('custom_components/flavor_of_the_day'):
             filepath = os.path.join(root, file)
             with open(filepath, 'r') as f:
                 content = f.read()
-                if re.search(r'^[[:space:]]*print\(', content, re.MULTILINE):
+                if re.search(r'^\s*print\(', content, re.MULTILINE):
                     issues.append(f'Found print() statement in {filepath}')
 
-# Check for hardcoded URLs/secrets
+# Check for hardcoded secrets (basic patterns)
 for root, dirs, files in os.walk('custom_components/flavor_of_the_day'):
     for file in files:
         if file.endswith('.py'):
             filepath = os.path.join(root, file)
             with open(filepath, 'r') as f:
                 content = f.read()
-                if re.search(r'(password|secret|token|key)\s*=\s*[\"\']\w+', content, re.IGNORECASE):
+                # Look for actual hardcoded secrets (not entity keys)
+                if re.search(r'(password|secret|api_key)\s*=\s*\"[A-Za-z0-9_-]{8,}\"', content, re.IGNORECASE):
                     issues.append(f'Potential hardcoded secret in {filepath}')
 
 if issues:

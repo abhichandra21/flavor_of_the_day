@@ -1,4 +1,4 @@
-"""Data coordinator for the Flavor of the Day integration."""
+"""Flavor update coordinator for the Flavor of the Day integration."""
 
 from __future__ import annotations
 
@@ -6,16 +6,17 @@ import logging
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-if TYPE_CHECKING:
-    from homeassistant.config_entries import ConfigEntry
-
 from .exceptions import FlavorProviderAuthenticationError, FlavorProviderError
 from .models import FlavorInfo
-from .providers.base import BaseFlavorProvider
+
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+
+    from .providers.base import BaseFlavorProvider
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,18 +44,21 @@ class FlavorUpdateCoordinator(DataUpdateCoordinator[FlavorInfo]):
         self.config_entry = config_entry
 
     async def _async_update_data(self) -> FlavorInfo:
-        """Fetch data from the provider."""
+        """Fetch data from API endpoint."""
         try:
+            # Use the provider to get current flavor
             return await self.provider.get_current_flavor(self.location_id)
         except FlavorProviderAuthenticationError as err:
-            raise ConfigEntryAuthFailed(
-                f"Authentication failed for {self.provider.provider_name}: {err}"
-            ) from err
+            msg = f"Authentication failed for {self.provider.provider_name}: {err}"
+            raise ConfigEntryAuthFailed(msg) from err
         except FlavorProviderError as err:
-            raise UpdateFailed(
-                f"Error communicating with {self.provider.provider_name}: {err}"
-            ) from err
+            msg = f"Error communicating with {self.provider.provider_name}: {err}"
+            raise UpdateFailed(msg) from err
         except Exception as err:
-            raise UpdateFailed(
-                f"Unexpected error communicating with {self.provider.provider_name}: {err}"
-            ) from err
+            _LOGGER.exception(
+                "Unexpected error communicating with %s",
+                self.provider.provider_name,
+            )
+            provider_name = self.provider.provider_name
+            msg = f"Unexpected error communicating with {provider_name}: {err}"
+            raise UpdateFailed(msg) from err

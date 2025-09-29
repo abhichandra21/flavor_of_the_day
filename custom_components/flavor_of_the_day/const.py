@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
 
+    from .data import FlavorOfTheDayData
+
 
 DOMAIN = "flavor_of_the_day"
 
