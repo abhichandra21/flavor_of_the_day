@@ -5,6 +5,27 @@
 
 **Flavor of the Day** is a Home Assistant custom integration that provides information about the daily flavor offerings from popular ice cream and frozen custard locations. The integration allows users to get notified when their favorite store's flavor of the day changes.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/images/integration-dashboard.png" alt="Integration Dashboard" width="400"/></td>
+    <td><img src="docs/images/provider-selection.png" alt="Provider Selection" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Integration Dashboard showing multiple locations</em></td>
+    <td align="center"><em>Provider selection during setup</em></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/location-search.png" alt="Location Search" width="400"/></td>
+    <td><img src="docs/images/location-selection.png" alt="Location Selection" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Search for locations by city or ZIP</em></td>
+    <td align="center"><em>Select your preferred location</em></td>
+  </tr>
+</table>
+
 ## Features
 
 - **Multiple Supported Providers**: Track flavors from Culver's, Kopp's, Oscar's, and Goodberry's
@@ -56,18 +77,18 @@ After adding the integration, you can modify the update interval through the Opt
 
 The integration provides the following custom service:
 
-### `flavor_of_the_day.force_refresh`
+### `flavor_of_the_day.refresh`
 Force a refresh of the flavor of the day without waiting for the update interval to expire.
 
-* **Service**: `flavor_of_the_day.force_refresh`
+* **Service**: `flavor_of_the_day.refresh`
 * **Fields**:
   * `entity_id` (string, required): The entity ID of the flavor sensor to refresh
 
 *Example:*
 ```yaml
-service: flavor_of_the_day.force_refresh
+service: flavor_of_the_day.refresh
 data:
-  entity_id: sensor.flavor_of_the_day_culvers_location
+  entity_id: sensor.culvers_hartland_flavor_of_the_day
 ```
 
 ## Sensors
