@@ -14,6 +14,7 @@ from .const import (
     CONF_PROVIDER,
     CONF_UPDATE_INTERVAL,
     DEFAULT_UPDATE_INTERVAL,
+    DOMAIN,
 )
 from .coordinator import FlavorUpdateCoordinator
 from .data import FlavorOfTheDayData
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-CONFIG_SCHEMA = cv.config_entry_only_config_schema()
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 # Mapping of provider IDs to their classes
 PROVIDER_CLASSES = {
