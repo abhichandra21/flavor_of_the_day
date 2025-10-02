@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "🧪 Running Flavor of the Day Integration Tests"
+echo "============================================="
+
+# Activate virtual environment
+if [ -d "venv" ]; then
+    echo "📦 Activating virtual environment..."
+    source venv/bin/activate
+else
+    echo "❌ No venv found. Run './scripts/setup' first."
+    exit 1
+fi
+
+# Install test dependencies if not present
+echo "📦 Ensuring test dependencies are installed..."
+if [ -f "requirements-dev.txt" ]; then
+    python3 -m pip install --requirement requirements-dev.txt --quiet
+else
+    python3 -m pip install --requirement requirements.txt --quiet
+fi
+
+# Run linting first
+echo "🔍 Running code linting..."
+./scripts/lint
+
+# Run pytest with coverage
+echo "🧪 Running unit tests with coverage..."
+python3 -m pytest tests/ -v --cov=custom_components.flavor_of_the_day --cov-report=term-missing
+
+echo "✅ All tests completed!"

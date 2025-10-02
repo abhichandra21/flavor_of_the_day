@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+# Activate virtual environment if it exists
+if [ -d "venv" ]; then
+    echo "📦 Using existing virtual environment..."
+    source venv/bin/activate
+    # Check if we're properly in the venv
+    if [[ "$VIRTUAL_ENV" == *"venv"* ]]; then
+        echo "✅ Virtual environment activated: $VIRTUAL_ENV"
+        PYTHON_CMD="python3"
+    else
+        echo "⚠️  Failed to activate venv, using system python3"
+        PYTHON_CMD="python3"
+    fi
+else
+    echo "⚠️  No venv found. Creating new virtual environment..."
+    python3 -m venv venv
+    source venv/bin/activate
+    PYTHON_CMD="python3"
+fi
+
+# Install requirements with proper flags for macOS
+echo "📦 Installing dependencies..."
+$PYTHON_CMD -m pip install --upgrade pip
+
+# Install basic runtime dependencies first
+echo "📦 Installing runtime dependencies..."
+$PYTHON_CMD -m pip install --requirement requirements.txt
+
+# Install development dependencies if available
+if [ -f "requirements-dev.txt" ]; then
+    echo "📦 Installing development dependencies..."
+    $PYTHON_CMD -m pip install --requirement requirements-dev.txt
+else
+    echo "⚠️  No requirements-dev.txt found, skipping development dependencies"
+fi
+
+echo "✅ Setup complete! Virtual environment ready."

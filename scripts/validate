@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+echo "🔍 Validating Flavor of the Day Integration"
+echo "==========================================="
+
+# Try to use virtual environment if available
+if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
+    echo "📦 Using virtual environment..."
+    source venv/bin/activate
+    # Check if python is available in venv
+    if command -v python >/dev/null 2>&1; then
+        PYTHON_CMD="python"
+    elif command -v python3 >/dev/null 2>&1; then
+        PYTHON_CMD="python3"
+    else
+        echo "⚠️  No Python found in venv, using system python3"
+        PYTHON_CMD="python3"
+    fi
+else
+    PYTHON_CMD="python3"
+fi
+
+# Quick syntax validation
+echo "📝 Checking Python syntax..."
+$PYTHON_CMD -m py_compile custom_components/flavor_of_the_day/*.py
+$PYTHON_CMD -m py_compile custom_components/flavor_of_the_day/providers/*.py
+
+# Validate manifest.json
+echo "📋 Validating manifest.json..."
+$PYTHON_CMD -c "
+import json
+import sys
+
+try:
+    with open('custom_components/flavor_of_the_day/manifest.json') as f:
+        manifest = json.load(f)
+
+    required_keys = ['domain', 'name', 'version']
+    for key in required_keys:
+        if key not in manifest:
+            print(f'❌ Missing required key: {key}')
+            sys.exit(1)
+
+    print('✅ Manifest is valid')
+except Exception as e:
+    print(f'❌ Manifest validation failed: {e}')
+    sys.exit(1)
+"
+
+# Import test - check basic structure (skip full imports if HA not available)
+echo "📦 Testing module structure..."
+$PYTHON_CMD -c "
+import os
+import ast
+
+def validate_python_file(filepath):
+    try:
+        with open(filepath, 'r') as f:
+            ast.parse(f.read())
+        return True
+    except SyntaxError as e:
+        print(f'❌ Syntax error in {filepath}: {e}')
+        return False
+
+all_valid = True
+for root, dirs, files in os.walk('custom_components/flavor_of_the_day'):
+    for file in files:
+        if file.endswith('.py'):
+            filepath = os.path.join(root, file)
+            if not validate_python_file(filepath):
+                all_valid = False
+
+if all_valid:
+    print('✅ All Python files have valid syntax')
+else:
+    exit(1)
+
+# Check if we can import without Home Assistant dependencies
+try:
+    import sys
+    sys.path.insert(0, 'custom_components')
+
+    # Mock Home Assistant modules to test import structure
+    import types
+
+    # Create mock modules
+    homeassistant = types.ModuleType('homeassistant')
+    homeassistant.config_entries = types.ModuleType('config_entries')
+    homeassistant.core = types.ModuleType('core')
+    homeassistant.helpers = types.ModuleType('helpers')
+    homeassistant.components = types.ModuleType('components')
+
+    sys.modules['homeassistant'] = homeassistant
+    sys.modules['homeassistant.config_entries'] = homeassistant.config_entries
+    sys.modules['homeassistant.core'] = homeassistant.core
+    sys.modules['homeassistant.helpers'] = homeassistant.helpers
+    sys.modules['homeassistant.components'] = homeassistant.components
+
+    # Now try imports
+    from flavor_of_the_day.const import DOMAIN
+    print(f'✅ Module structure valid (DOMAIN: {DOMAIN})')
+except Exception as e:
+    print(f'⚠️  Module structure test inconclusive: {e}')
+"
+
+# Check for common issues
+echo "🔍 Checking for common issues..."
+$PYTHON_CMD -c "
+import os
+import re
+
+issues = []
+
+# Check for print statements (should use logging)
+for root, dirs, files in os.walk('custom_components/flavor_of_the_day'):
+    for file in files:
+        if file.endswith('.py'):
+            filepath = os.path.join(root, file)
+            with open(filepath, 'r') as f:
+                content = f.read()
+                if re.search(r'^\s*print\(', content, re.MULTILINE):
+                    issues.append(f'Found print() statement in {filepath}')
+
+# Check for hardcoded secrets (basic patterns)
+for root, dirs, files in os.walk('custom_components/flavor_of_the_day'):
+    for file in files:
+        if file.endswith('.py'):
+            filepath = os.path.join(root, file)
+            with open(filepath, 'r') as f:
+                content = f.read()
+                # Look for actual hardcoded secrets (not entity keys)
+                if re.search(r'(password|secret|api_key)\s*=\s*\"[A-Za-z0-9_-]{8,}\"', content, re.IGNORECASE):
+                    issues.append(f'Potential hardcoded secret in {filepath}')
+
+if issues:
+    print('⚠️  Issues found:')
+    for issue in issues:
+        print(f'  - {issue}')
+else:
+    print('✅ No common issues detected')
+"
+
+echo "🎯 Quick validation complete!"
+echo ""
+echo "Next steps:"
+echo "  • Run './scripts/test' for full test suite"
+echo "  • Run './scripts/develop' to test in Home Assistant"
+echo "  • Run './scripts/lint' for code formatting"

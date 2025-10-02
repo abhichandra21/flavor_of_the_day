@@ -1,0 +1,6 @@
+refresh:
+  name: Refresh
+  description: Force an immediate refresh of the flavor of the day.
+  target:
+    entity:
+      integration: flavor_of_the_day
